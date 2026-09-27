@@ -1,0 +1,222 @@
+{
+  "source": "https://zenodo.org/records/12588359",
+  "files": [
+    {
+      "file": "dataset.csv",
+      "size_MB": 0.51,
+      "rows": 2123,
+      "columns": {
+        "segment": "int64",
+        "anomaly": "int64",
+        "train": "int64",
+        "channel": "str",
+        "sampling": "int64",
+        "duration": "int64",
+        "len": "int64",
+        "mean": "float64",
+        "var": "float64",
+        "std": "float64",
+        "kurtosis": "float64",
+        "skew": "float64",
+        "n_peaks": "int64",
+        "smooth10_n_peaks": "int64",
+        "smooth20_n_peaks": "int64",
+        "diff_peaks": "int64",
+        "diff2_peaks": "int64",
+        "diff_var": "float64",
+        "diff2_var": "float64",
+        "gaps_squared": "int64",
+        "len_weighted": "int64",
+        "var_div_duration": "float64",
+        "var_div_len": "float64"
+      },
+      "nan_counts": {},
+      "head": [
+        {
+          "segment": "1",
+          "anomaly": "1",
+          "train": "1",
+          "channel": "CADC0872",
+          "sampling": "1",
+          "duration": "279",
+          "len": "280",
+          "mean": "8.533143499999998e-07",
+          "var": "3.49428315570552e-10",
+          "std": "1.8693001780627744e-05",
+          "kurtosis": "0.6311173662492302",
+          "skew": "0.5520522696354365",
+          "n_peaks": "4",
+          "smooth10_n_peaks": "3",
+          "smooth20_n_peaks": "2",
+          "diff_peaks": "4",
+          "diff2_peaks": "6",
+          "diff_var": "1.2711755417075724e-10",
+          "diff2_var": "2.9606660433502864e-10",
+          "gaps_squared": "309",
+          "len_weighted": "280",
+          "var_div_duration": "1.2524312386041289e-12",
+          "var_div_len": "1.2479582698948285e-12"
+        },
+        {
+          "segment": "2",
+          "anomaly": "1",
+          "train": "1",
+          "channel": "CADC0872",
+          "sampling": "1",
+          "duration": "476",
+          "len": "477",
+          "mean": "-3.639396266247381e-06",
+          "var": "6.476484614528283e-10",
+          "std": "2.5448938316810556e-05",
+          "kurtosis": "-1.2436105409484075",
+          "skew": "0.4256322649450154",
+          "n_peaks": "1",
+          "smooth10_n_peaks": "1",
+          "smooth20_n_peaks": "1",
+          "diff_peaks": "5",
+          "diff2_peaks": "8",
+          "diff_var": "1.4893834768968185e-12",
+          "diff2_var": "3.004752494170574e-12",
+          "gaps_squared": "644",
+          "len_weighted": "477",
+          "var_div_duration": "1.3606060114555216e-12",
+          "var_div_len": "1.357753587951422e-12"
+        },
+        {
+          "segment": "3",
+          "anomaly": "1",
+          "train": "1",
+          "channel": "CADC0872",
+          "sampling": "1",
+          "duration": "594",
+          "len": "595",
+          "mean": "1.1707879512605042e-05",
+          "var": "5.59287714097435e-10",
+          "std": "2.364926455722112e-05",
+          "kurtosis": "-0.2845925576500123",
+          "skew": "-0.8261874641934153",
+          "n_peaks": "3",
+          "smooth10_n_peaks": "2",
+          "smooth20_n_peaks": "2",
+          "diff_peaks": "2",
+          "diff2_peaks": "3",
+          "diff_var": "4.112280202789317e-12",
+          "diff2_var": "1.0299180074673246e-11",
+          "gaps_squared": "772",
+          "len_weighted": "595",
+          "var_div_duration": "9.415618082448399e-13",
+          "var_div_len": "9.399793514242604e-13"
+        }
+      ],
+      "value_counts": {
+        "anomaly": {
+          "0": 1689,
+          "1": 434
+        },
+        "train": {
+          "1": 1594,
+          "0": 529
+        },
+        "channel": {
+          "CADC0873": 593,
+          "CADC0872": 546,
+          "CADC0888": 252,
+          "CADC0892": 211,
+          "CADC0874": 194,
+          "CADC0884": 158,
+          "CADC0894": 144,
+          "CADC0890": 14,
+          "CADC0886": 11
+        },
+        "sampling": {
+          "5": 1330,
+          "1": 793
+        }
+      }
+    },
+    {
+      "file": "segments.csv",
+      "size_MB": 17.97,
+      "rows": 303493,
+      "columns": {
+        "channel": "str",
+        "timestamp": "str",
+        "value": "float64",
+        "label": "str",
+        "sampling": "int64",
+        "anomaly": "int64",
+        "segment": "int64",
+        "train": "int64"
+      },
+      "nan_counts": {},
+      "head": [
+        {
+          "channel": "CADC0872",
+          "timestamp": "2022-06-01T23:42:54.000Z",
+          "value": "-2.1487e-05",
+          "label": "anomaly",
+          "sampling": "1",
+          "anomaly": "1",
+          "segment": "1",
+          "train": "1"
+        },
+        {
+          "channel": "CADC0872",
+          "timestamp": "2022-06-01T23:42:55.000Z",
+          "value": "-2.05077e-05",
+          "label": "anomaly",
+          "sampling": "1",
+          "anomaly": "1",
+          "segment": "1",
+          "train": "1"
+        },
+        {
+          "channel": "CADC0872",
+          "timestamp": "2022-06-01T23:42:56.000Z",
+          "value": "-2.10633e-05",
+          "label": "anomaly",
+          "sampling": "1",
+          "anomaly": "1",
+          "segment": "1",
+          "train": "1"
+        }
+      ],
+      "value_counts": {
+        "channel": {
+          "CADC0873": 68289,
+          "CADC0872": 66819,
+          "CADC0874": 58719,
+          "CADC0892": 49782,
+          "CADC0894": 35512,
+          "CADC0884": 11810,
+          "CADC0888": 11640,
+          "CADC0890": 549,
+          "CADC0886": 373
+        },
+        "label": {
+          "a3": 106930,
+          "anomaly": 100264,
+          "a2": 75272,
+          "a4": 21027
+        },
+        "sampling": {
+          "1": 237165,
+          "5": 66328
+        },
+        "anomaly": {
+          "0": 203229,
+          "1": 100264
+        },
+        "train": {
+          "1": 225178,
+          "0": 78315
+        }
+      },
+      "time_range": [
+        "2022-01-04 20:00:50+00:00",
+        "2022-06-02 15:10:42+00:00"
+      ],
+      "median_cadence_s": 0.0
+    }
+  ]
+}

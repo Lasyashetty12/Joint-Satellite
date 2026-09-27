@@ -199,9 +199,22 @@ def inspect_csv(path: Path, max_unique: int = 20) -> dict:
         ts = pd.to_datetime(df[c], errors="coerce", utc=True)
         if ts.notna().any():
             info["time_range"] = [str(ts.min()), str(ts.max())]
-            d = ts.dropna().sort_values().diff().dropna()
+            # Cadence must be measured WITHIN one series (channel / segment), otherwise
+            # readings of different channels at the same instant give a gap of 0.
+            groups = [g for g in ("channel", "segment") if g in df.columns]
+            tmp = df.assign(_ts=ts).dropna(subset=["_ts"])
+            if groups:
+                d = tmp.sort_values(groups + ["_ts"]).groupby(groups)["_ts"].diff()
+            else:
+                d = tmp["_ts"].sort_values().diff()
+            d = d.dropna().dt.total_seconds()
             if len(d):
-                info["median_cadence_s"] = float(d.dt.total_seconds().median())
+                info["median_cadence_s"] = float(d.median())
+                info["cadence_s_counts_top5"] = {str(k): int(v) for k, v in d.value_counts().head(5).items()}
+                info["cadence_grouped_by"] = groups
+            if "sampling" in df.columns and groups:
+                per = tmp.sort_values(groups + ["_ts"]).assign(_d=d).groupby("sampling")["_d"].median()
+                info["median_cadence_s_by_sampling"] = {str(k): float(v) for k, v in per.items()}
     return info
 
 
@@ -237,7 +250,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\n=== {f['file']} ({f['size_MB']} MB, {f['rows']} rows) ===")
             print("columns:", f["columns"])
             print("label-like value counts:", json.dumps(f["value_counts"], indent=1))
-            for k in ("time_range", "median_cadence_s", "nan_counts"):
+            for k in ("time_range", "median_cadence_s", "median_cadence_s_by_sampling",
+                      "cadence_s_counts_top5", "nan_counts"):
                 if k in f:
                     print(f"{k}: {f[k]}")
         print(f"\nSaved: {REPORTS / 'm4_opssat_inventory.json'}")

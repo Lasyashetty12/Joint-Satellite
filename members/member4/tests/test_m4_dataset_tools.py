@@ -114,6 +114,19 @@ def test_opssat_inventory(tmp_path, monkeypatch):
     assert f["nan_counts"] == {"value": 1}
 
 
+def test_cadence_measured_per_channel(tmp_path, monkeypatch):
+    """Two channels sampled at the SAME instants every 5 s: cadence must be 5, not 0."""
+    monkeypatch.setattr(inv, "REPORTS", tmp_path / "reports")
+    root = tmp_path / "opssat2"
+    root.mkdir()
+    t = pd.date_range("2022-01-01", periods=4, freq="5s").astype(str).tolist()
+    pd.DataFrame({"channel": ["A"] * 4 + ["B"] * 4, "timestamp": t + t, "value": range(8),
+                  "segment": [1] * 4 + [2] * 4, "sampling": [5] * 8}).to_csv(root / "segments.csv", index=False)
+    f = inv.run_opssat(root)["files"][0]
+    assert f["median_cadence_s"] == 5.0
+    assert f["median_cadence_s_by_sampling"] == {"5": 5.0}
+
+
 # ------------------------------------------------------------------ downloader (mocked network)
 FAKE = {
     "S1Hand": ["Bolivia_1_S1Hand.tif", "Bolivia_2_S1Hand.tif", "Ghana_3_S1Hand.tif"],

@@ -216,7 +216,22 @@
         "2022-01-04 20:00:50+00:00",
         "2022-06-02 15:10:42+00:00"
       ],
-      "median_cadence_s": 0.0
+      "median_cadence_s": 1.0,
+      "cadence_s_counts_top5": {
+        "1.0": 187304,
+        "5.0": 63680,
+        "2.0": 26941,
+        "0.0": 22115,
+        "6.0": 693
+      },
+      "cadence_grouped_by": [
+        "channel",
+        "segment"
+      ],
+      "median_cadence_s_by_sampling": {
+        "1": 1.0,
+        "5": 5.0
+      }
     }
   ]
 }

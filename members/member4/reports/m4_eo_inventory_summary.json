@@ -1,0 +1,61 @@
+{
+  "n_chips": 15,
+  "events": {
+    "Bolivia": 15
+  },
+  "all_layers_present": 15,
+  "aligned": 0,
+  "S1_bands": [
+    2
+  ],
+  "S2_bands": [
+    13
+  ],
+  "shapes": [
+    "512x512"
+  ],
+  "dtypes": {
+    "S1Hand": [
+      "float32"
+    ],
+    "S2Hand": [
+      "int16"
+    ],
+    "LabelHand": [
+      "int16"
+    ]
+  },
+  "nodata": {
+    "S1Hand": [
+      "nan"
+    ],
+    "S2Hand": [
+      "0.0"
+    ],
+    "LabelHand": [
+      "None"
+    ]
+  },
+  "S1_range": [
+    -103.87602996826172,
+    8.278704643249512
+  ],
+  "S2_range": [
+    0.0,
+    9925.0
+  ],
+  "label_values_seen": [
+    -1,
+    0,
+    1
+  ],
+  "tau_flood": 0.05,
+  "eo_label_counts": {
+    "1": 9,
+    "0": 6
+  },
+  "flood_frac_mean": 0.1699,
+  "official_split_counts": {
+    "bolivia": 15
+  }
+}

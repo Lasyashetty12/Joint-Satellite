@@ -1,0 +1,17 @@
+# Member 4 local ignores (handbook section 15: no data, checkpoints, caches in Git)
+data/raw/
+data/cache/
+data/eo/
+*.parquet
+*.tif
+*.tiff
+*.zip
+*.pt
+*.pth
+*.ckpt
+checkpoints/
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+.env
+reports/m4_env_report.json

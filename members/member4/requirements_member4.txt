@@ -1,0 +1,24 @@
+# Member 4 requirements (Phase 1).
+# Install:  python -m pip install -r members/member4/requirements_member4.txt
+# After m4_env_check.py passes, PIN the exact working versions with:
+#   python -m pip freeze > members/member4/requirements_member4.lock.txt
+# and commit that lock file (handbook: "Pin working versions").
+
+# --- Required now (Phase 1) ---
+numpy>=1.26
+pandas>=2.1
+pyarrow>=14
+scipy>=1.11
+statsmodels>=0.14
+scikit-learn>=1.3
+xgboost>=2.0
+torch>=2.2
+matplotlib>=3.8
+pytest>=8.0
+
+# --- Needed later (EO imagery, dashboard, explainability) ---
+torchvision>=0.17
+rasterio>=1.3
+plotly>=5.18
+streamlit>=1.30
+shap>=0.44

@@ -1,0 +1,24 @@
+{
+  "version": "m4_v1",
+  "seed": 42,
+  "rows": 259200,
+  "days": 90,
+  "cadence_s": 30,
+  "eclipse_fraction_measured": 0.3473,
+  "true_SoC_min": 67.19,
+  "true_SoC_max": 100.0,
+  "payload_on_fraction": 0.0275,
+  "n_anomaly_events": 59,
+  "events_per_type": {
+    "payload_fault": 10,
+    "noise_burst": 10,
+    "drift": 9,
+    "stuck": 8,
+    "spike": 6,
+    "batt_fade": 6,
+    "thermal_runaway": 5,
+    "v_drop": 5
+  },
+  "n_dropouts": 33,
+  "nan_fraction": 0.00609
+}

@@ -1,0 +1,56 @@
+{
+  "version": "m4_v1",
+  "seed": 42,
+  "start_time": "2026-01-01T00:00:00Z",
+  "cadence_s": 30,
+  "days": 90,
+  "orbit_period_min": 95,
+  "eclipse_fraction": 0.35,
+  "channels": ["batt_temp", "panel_temp", "bus_V", "batt_I", "solar_I", "SoC", "att_err", "payload_P"],
+  "anomaly_rate_per_day": 0.6,
+  "anomaly_types": ["spike", "stuck", "drift", "v_drop", "batt_fade", "thermal_runaway", "noise_burst", "payload_fault"],
+  "dropout_rate_per_day": 0.3,
+  "tau_flood": 0.05,
+
+  "physics": {
+    "solar_I_max_A": 3.5,
+    "beta_amplitude_deg": 25.0,
+    "beta_period_days": 60.0,
+    "panel_degradation_per_day": 0.0002,
+    "base_load_W": 25.0,
+    "payload_on_W": 30.0,
+    "payload_idle_W": 2.0,
+    "imaging_passes_per_day": 4,
+    "imaging_duration_min": 8,
+    "bus_V_nominal": 28.0,
+    "battery_capacity_Ah": 5.0,
+    "capacity_fade_per_day": 0.0003,
+    "initial_SoC": 95.0,
+    "bus_V_min": 24.0,
+    "bus_V_k_soc": 0.04,
+    "bus_V_r_batt": 0.15,
+    "panel_T_sun_C": 60.0,
+    "panel_T_eclipse_C": -40.0,
+    "panel_tau_min": 12.0,
+    "batt_T_base_C": 15.0,
+    "batt_T_sun_offset_C": 3.0,
+    "batt_T_current_coeff": 2.0,
+    "batt_tau_min": 60.0,
+    "initial_batt_T_C": 18.3,
+    "att_ar_phi": 0.98,
+    "att_ar_sigma_deg": 0.005
+  },
+
+  "measurement_noise_sd": {
+    "batt_temp": 0.1,
+    "panel_temp": 0.5,
+    "bus_V": 0.02,
+    "batt_I": 0.03,
+    "solar_I": 0.03,
+    "SoC": 0.1,
+    "att_err": 0.002,
+    "payload_P": 0.3
+  },
+
+  "anomaly_min_gap_min": 60
+}

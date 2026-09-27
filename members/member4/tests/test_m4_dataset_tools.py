@@ -29,9 +29,11 @@ def write_tif(path, arr, transform, nodata=None):
         ds.write(arr)
 
 
-def make_chip(root, cid, flood_frac, size=32, shift=False):
+def make_chip(root, cid, flood_frac, size=32, shift=False, tiny=False):
     tf = from_origin(10.0, 20.0, 0.0001, 0.0001)
     tf_lab = from_origin(10.5, 20.0, 0.0001, 0.0001) if shift else tf
+    if tiny:   # floating-point-sized difference: must still count as aligned
+        tf_lab = from_origin(10.0 + 1e-12, 20.0, 0.0001, 0.0001)
     rng = np.random.default_rng(0)
     s1 = rng.normal(-15, 3, (2, size, size)).astype("float32")
     s1[0, 0, 0] = np.nan
@@ -52,7 +54,7 @@ def make_chip(root, cid, flood_frac, size=32, shift=False):
 def eo_root(tmp_path, monkeypatch):
     root = tmp_path / "sen1floods11" / "HandLabeled"
     make_chip(root, "Bolivia_1", 0.30)
-    make_chip(root, "Bolivia_2", 0.01)
+    make_chip(root, "Bolivia_2", 0.01, tiny=True)
     make_chip(root, "Ghana_3", 0.10, shift=True)          # misaligned on purpose
     splits = tmp_path / "sen1floods11" / "splits"
     splits.mkdir(parents=True)
@@ -81,7 +83,9 @@ def test_eo_inventory_measures_properties(eo_root):
     assert s["n_chips"] == 3
     assert s["S1_bands"] == [2] and s["S2_bands"] == [13]
     assert s["label_values_seen"] == [-1, 0, 1]
-    assert s["aligned"] == 2                               # Ghana_3 is shifted
+    assert s["aligned"] == 2                               # Ghana_3 is shifted, Bolivia_2 only 1e-12
+    assert s["alignment_detail"]["crs_match"] == 3
+    assert s["alignment_detail"]["max_offset_px"] > 1000   # the Ghana shift, reported in pixels
     assert s["eo_label_counts"] == {1: 2, 0: 1}            # 0.30, 0.10 >= 0.05 ; 0.01 < 0.05
     assert s["official_split_counts"].get("bolivia") == 2
     assert (inv.REPORTS / "m4_eo_inventory.csv").exists()

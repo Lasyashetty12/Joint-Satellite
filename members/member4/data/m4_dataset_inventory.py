@@ -44,6 +44,30 @@ def flood_fraction(label: np.ndarray, nodata_value: int = -1) -> tuple[float, fl
     return float((label[valid] == 1).sum() / n_valid), float(n_valid / label.size)
 
 
+def alignment(meta: dict, tol_px: float = 0.5) -> dict:
+    """Compare every layer with S1Hand. Aligned = same CRS (rasterio equality, not text),
+    same shape, and pixel grids offset by less than `tol_px` pixels. Reports WHY if not."""
+    out = {"aligned": False, "crs_match": None, "shape_match": None, "max_offset_px": None,
+           "pixel_size_match": None, "crs_text": ""}
+    if "S1Hand" not in meta or len(meta) < len(LAYERS):
+        return out
+    ref = meta["S1Hand"]
+    rt = ref["transform"]
+    px = max(abs(rt.a), abs(rt.e)) or 1.0
+    crs_ok, shape_ok, size_ok, max_off = True, True, True, 0.0
+    for layer, m in meta.items():
+        crs_ok &= (m["crs"] == ref["crs"])
+        shape_ok &= (m["shape"] == ref["shape"])
+        t = m["transform"]
+        size_ok &= abs(t.a - rt.a) <= 0.01 * abs(rt.a) and abs(t.e - rt.e) <= 0.01 * abs(rt.e)
+        max_off = max(max_off, abs(t.c - rt.c) / px, abs(t.f - rt.f) / px)
+    out.update({"crs_match": bool(crs_ok), "shape_match": bool(shape_ok), "pixel_size_match": bool(size_ok),
+                "max_offset_px": round(float(max_off), 6),
+                "crs_text": " | ".join(f"{l}:{m['crs'].to_string() if m['crs'] else None}" for l, m in meta.items())})
+    out["aligned"] = bool(crs_ok and shape_ok and size_ok and max_off < tol_px)
+    return out
+
+
 def find_chips(root: Path) -> list[str]:
     ids = [p.name.rsplit("_", 1)[0] for p in (root / "LabelHand").glob("*_LabelHand.tif")]
     return sorted(ids)
@@ -62,7 +86,7 @@ def inspect_chip(root: Path, cid: str, tau: float = TAU_FLOOD) -> dict:
             continue
         with rasterio.open(path) as ds:
             a = ds.read()
-            meta[layer] = (ds.crs.to_string() if ds.crs else None, tuple(ds.transform)[:6], ds.width, ds.height)
+            meta[layer] = {"crs": ds.crs, "transform": ds.transform, "shape": (ds.height, ds.width)}
             arrays[layer] = a
             row[f"{layer}_bands"] = ds.count
             row[f"{layer}_shape"] = f"{ds.height}x{ds.width}"
@@ -73,7 +97,7 @@ def inspect_chip(root: Path, cid: str, tau: float = TAU_FLOOD) -> dict:
             row[f"{layer}_max"] = float(finite.max()) if finite.size else float("nan")
             row[f"{layer}_nan_frac"] = float(np.isnan(a).mean()) if np.issubdtype(a.dtype, np.floating) else 0.0
     row["all_layers_present"] = all(l in arrays for l in LAYERS)
-    row["aligned"] = row["all_layers_present"] and len(set(meta.values())) == 1
+    row.update(alignment(meta))
     if "LabelHand" in arrays:
         lab = arrays["LabelHand"][0]
         vals, cnts = np.unique(lab, return_counts=True)
@@ -155,6 +179,13 @@ def run_eo(root: Path, tau: float, plot: bool) -> dict:
         "events": df["event"].value_counts().to_dict(),
         "all_layers_present": int(df["all_layers_present"].sum()),
         "aligned": int(df["aligned"].sum()),
+        "alignment_detail": {
+            "crs_match": int(df["crs_match"].fillna(False).sum()),
+            "shape_match": int(df["shape_match"].fillna(False).sum()),
+            "pixel_size_match": int(df["pixel_size_match"].fillna(False).sum()),
+            "max_offset_px": float(df["max_offset_px"].max()),
+            "example_crs": str(df["crs_text"].iloc[0]),
+        },
         "S1_bands": sorted(df["S1Hand_bands"].dropna().unique().tolist()),
         "S2_bands": sorted(df["S2Hand_bands"].dropna().unique().tolist()),
         "shapes": sorted(set(df["S1Hand_shape"].dropna()) | set(df["S2Hand_shape"].dropna())),

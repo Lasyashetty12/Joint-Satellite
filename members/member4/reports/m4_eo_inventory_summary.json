@@ -4,7 +4,14 @@
     "Bolivia": 15
   },
   "all_layers_present": 15,
-  "aligned": 0,
+  "aligned": 15,
+  "alignment_detail": {
+    "crs_match": 15,
+    "shape_match": 15,
+    "pixel_size_match": 15,
+    "max_offset_px": 0.0,
+    "example_crs": "S1Hand:EPSG:4326 | S2Hand:EPSG:4326 | LabelHand:EPSG:4326"
+  },
   "S1_bands": [
     2
   ],

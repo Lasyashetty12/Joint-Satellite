@@ -1,0 +1,2 @@
+# Dataset inventory uses only the Python standard library.
+# Add pinned ML/geospatial dependencies after checking your Python environment.

@@ -1,0 +1,186 @@
+[
+  {
+    "id": "https://openalex.org/W2152475379",
+    "doi": "https://doi.org/10.1007/978-3-662-09438-9",
+    "title": "Principles of Artificial Intelligence",
+    "publication_year": 1982,
+    "cited_by_count": 3334,
+    "authorships": [
+      {
+        "author_position": "first",
+        "author": {
+          "id": "https://openalex.org/A5091863316",
+          "display_name": "Nils J. Nilsson",
+          "orcid": null,
+          "observed_orcids": []
+        },
+        "institutions": [
+          {
+            "id": "https://openalex.org/I1298353152",
+            "display_name": "SRI International",
+            "ror": "https://ror.org/05s570m15",
+            "country_code": "US",
+            "type": "nonprofit",
+            "lineage": [
+              "https://openalex.org/I1298353152"
+            ]
+          }
+        ],
+        "countries": [
+          "US"
+        ],
+        "is_corresponding": true,
+        "raw_author_name": "Nils J. Nilsson",
+        "raw_affiliation_strings": [
+          "SRI-International"
+        ],
+        "raw_orcid": null,
+        "affiliations": [
+          {
+            "raw_affiliation_string": "SRI-International",
+            "institution_ids": [
+              "https://openalex.org/I1298353152"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "https://openalex.org/W968045710",
+    "doi": "https://doi.org/10.1017/cbo9780511794797",
+    "title": "Artificial Intelligence",
+    "publication_year": 2010,
+    "cited_by_count": 427,
+    "authorships": [
+      {
+        "author_position": "first",
+        "author": {
+          "id": "https://openalex.org/A5102986310",
+          "display_name": "David Poole",
+          "orcid": "https://orcid.org/0000-0002-9361-7629",
+          "observed_orcids": [
+            "https://orcid.org/0000-0002-9361-7629"
+          ]
+        },
+        "institutions": [
+          {
+            "id": "https://openalex.org/I141945490",
+            "display_name": "University of British Columbia",
+            "ror": "https://ror.org/03rmrcq20",
+            "country_code": "CA",
+            "type": "education",
+            "lineage": [
+              "https://openalex.org/I141945490"
+            ]
+          }
+        ],
+        "countries": [
+          "CA"
+        ],
+        "is_corresponding": false,
+        "raw_author_name": "David L. Poole",
+        "raw_affiliation_strings": [
+          "University of British Columbia, Vancouver"
+        ],
+        "raw_orcid": null,
+        "affiliations": [
+          {
+            "raw_affiliation_string": "University of British Columbia, Vancouver",
+            "institution_ids": [
+              "https://openalex.org/I141945490"
+            ]
+          }
+        ]
+      },
+      {
+        "author_position": "last",
+        "author": {
+          "id": "https://openalex.org/A5079331774",
+          "display_name": "Alan K. Mackworth",
+          "orcid": "https://orcid.org/0000-0003-0380-105X",
+          "observed_orcids": [
+            "https://orcid.org/0000-0003-0380-105X"
+          ]
+        },
+        "institutions": [
+          {
+            "id": "https://openalex.org/I141945490",
+            "display_name": "University of British Columbia",
+            "ror": "https://ror.org/03rmrcq20",
+            "country_code": "CA",
+            "type": "education",
+            "lineage": [
+              "https://openalex.org/I141945490"
+            ]
+          }
+        ],
+        "countries": [
+          "CA"
+        ],
+        "is_corresponding": false,
+        "raw_author_name": "Alan K. Mackworth",
+        "raw_affiliation_strings": [
+          "University of British Columbia, Vancouver"
+        ],
+        "raw_orcid": null,
+        "affiliations": [
+          {
+            "raw_affiliation_string": "University of British Columbia, Vancouver",
+            "institution_ids": [
+              "https://openalex.org/I141945490"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "https://openalex.org/W4244364296",
+    "doi": "https://doi.org/10.1080/00401706.1989.10488504",
+    "title": "Artificial Intelligence and Statistics",
+    "publication_year": 1989,
+    "cited_by_count": 1217,
+    "authorships": [
+      {
+        "author_position": "first",
+        "author": {
+          "id": "https://openalex.org/A5089720802",
+          "display_name": "Eric R. Ziegel",
+          "orcid": null,
+          "observed_orcids": []
+        },
+        "institutions": [],
+        "countries": [],
+        "is_corresponding": false,
+        "raw_author_name": "Eric Ziegel",
+        "raw_affiliation_strings": [
+          "Amoco Corporation"
+        ],
+        "raw_orcid": null,
+        "affiliations": [
+          {
+            "raw_affiliation_string": "Amoco Corporation",
+            "institution_ids": []
+          }
+        ]
+      },
+      {
+        "author_position": "last",
+        "author": {
+          "id": "https://openalex.org/A5060268328",
+          "display_name": "William G. Gale",
+          "orcid": null,
+          "observed_orcids": []
+        },
+        "institutions": [],
+        "countries": [],
+        "is_corresponding": false,
+        "raw_author_name": "William Gale",
+        "raw_affiliation_strings": [],
+        "raw_orcid": null,
+        "affiliations": []
+      }
+    ]
+  }
+]

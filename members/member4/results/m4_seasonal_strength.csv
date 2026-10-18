@@ -1,0 +1,9 @@
+channel,seasonal_strength,trend_strength
+batt_temp,0.835,0.617
+panel_temp,0.946,0.248
+bus_V,0.929,0.236
+batt_I,0.926,0.344
+solar_I,0.952,0.207
+SoC,0.847,0.312
+att_err,0.171,0.499
+payload_P,0.022,0.002

@@ -1,0 +1,33 @@
+channel,transform,adf_stat,adf_p,kpss_stat,kpss_p,verdict
+batt_temp,raw,-17.379,0.0,0.621,0.0207,trend-stationary / mixed
+batt_temp,diff1,-24.583,0.0,0.002,0.1,stationary
+batt_temp,seasonal_diff190,-9.05,0.0,0.019,0.1,stationary
+batt_temp,stl_remainder,-11.941,0.0,0.359,0.0946,stationary
+panel_temp,raw,-24.613,0.0,0.017,0.1,stationary
+panel_temp,diff1,-19.523,0.0,0.002,0.1,stationary
+panel_temp,seasonal_diff190,-14.777,0.0,0.01,0.1,stationary
+panel_temp,stl_remainder,-13.793,0.0,0.611,0.0217,trend-stationary / mixed
+bus_V,raw,-16.969,0.0,0.027,0.1,stationary
+bus_V,diff1,-36.23,0.0,0.001,0.1,stationary
+bus_V,seasonal_diff190,-13.634,0.0,0.007,0.1,stationary
+bus_V,stl_remainder,-14.728,0.0,0.103,0.1,stationary
+batt_I,raw,-18.357,0.0,0.155,0.1,stationary
+batt_I,diff1,-39.367,0.0,0.001,0.1,stationary
+batt_I,seasonal_diff190,-13.299,0.0,0.011,0.1,stationary
+batt_I,stl_remainder,-15.416,0.0,0.102,0.1,stationary
+solar_I,raw,-18.688,0.0,0.057,0.1,stationary
+solar_I,diff1,-143.072,0.0,0.002,0.1,stationary
+solar_I,seasonal_diff190,-12.02,0.0,0.007,0.1,stationary
+solar_I,stl_remainder,-14.089,0.0,0.21,0.1,stationary
+SoC,raw,-16.097,0.0,0.203,0.1,stationary
+SoC,diff1,-24.356,0.0,0.002,0.1,stationary
+SoC,seasonal_diff190,-11.545,0.0,0.009,0.1,stationary
+SoC,stl_remainder,-12.938,0.0,0.097,0.1,stationary
+att_err,raw,-13.721,0.0,0.188,0.1,stationary
+att_err,diff1,-29.418,0.0,0.004,0.1,stationary
+att_err,seasonal_diff190,-12.991,0.0,0.01,0.1,stationary
+att_err,stl_remainder,-17.586,0.0,0.117,0.1,stationary
+payload_P,raw,-25.625,0.0,0.041,0.1,stationary
+payload_P,diff1,-56.797,0.0,0.0,0.1,stationary
+payload_P,seasonal_diff190,-25.356,0.0,0.006,0.1,stationary
+payload_P,stl_remainder,-25.254,0.0,0.038,0.1,stationary

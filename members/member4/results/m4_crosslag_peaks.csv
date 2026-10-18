@@ -1,0 +1,5 @@
+,peak_lag_samples,peak_lag_min,r
+solar_I->panel_temp,15.0,7.5,0.909
+batt_I->bus_V,1.0,0.5,0.751
+batt_I->batt_temp,19.0,9.5,0.417
+solar_I->SoC,19.0,9.5,0.879

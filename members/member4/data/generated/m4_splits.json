@@ -1,0 +1,67 @@
+{
+  "method": "chronological day blocks, ~60/20/20, gap before val and test",
+  "gap_days": 1,
+  "samples_per_day": 2880,
+  "n_days": 90,
+  "train": {
+    "days": [
+      0,
+      53
+    ],
+    "n_days": 54,
+    "rows": 155520,
+    "start": "2026-01-01T00:00:00+00:00",
+    "end": "2026-02-23T23:59:30+00:00",
+    "anomaly_events": 38,
+    "events_per_type": {
+      "drift": 8,
+      "stuck": 6,
+      "noise_burst": 6,
+      "payload_fault": 5,
+      "thermal_runaway": 4,
+      "batt_fade": 4,
+      "spike": 3,
+      "v_drop": 2
+    }
+  },
+  "val": {
+    "days": [
+      55,
+      71
+    ],
+    "n_days": 17,
+    "rows": 48960,
+    "start": "2026-02-25T00:00:00+00:00",
+    "end": "2026-03-13T23:59:30+00:00",
+    "anomaly_events": 12,
+    "events_per_type": {
+      "spike": 3,
+      "payload_fault": 3,
+      "v_drop": 2,
+      "noise_burst": 2,
+      "batt_fade": 1,
+      "stuck": 1
+    }
+  },
+  "test": {
+    "days": [
+      73,
+      89
+    ],
+    "n_days": 17,
+    "rows": 48960,
+    "start": "2026-03-15T00:00:00+00:00",
+    "end": "2026-03-31T23:59:30+00:00",
+    "anomaly_events": 9,
+    "events_per_type": {
+      "noise_burst": 2,
+      "payload_fault": 2,
+      "drift": 1,
+      "v_drop": 1,
+      "thermal_runaway": 1,
+      "batt_fade": 1,
+      "stuck": 1
+    }
+  },
+  "gap_rows": 5760
+}

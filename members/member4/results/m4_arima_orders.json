@@ -1,0 +1,34 @@
+{
+  "batt_temp": {
+    "p_from_pacf_of_stl_remainder": 10,
+    "acf_at_orbit_lag": 0.762
+  },
+  "panel_temp": {
+    "p_from_pacf_of_stl_remainder": 10,
+    "acf_at_orbit_lag": 0.941
+  },
+  "bus_V": {
+    "p_from_pacf_of_stl_remainder": 5,
+    "acf_at_orbit_lag": 0.893
+  },
+  "batt_I": {
+    "p_from_pacf_of_stl_remainder": 6,
+    "acf_at_orbit_lag": 0.897
+  },
+  "solar_I": {
+    "p_from_pacf_of_stl_remainder": 8,
+    "acf_at_orbit_lag": 0.933
+  },
+  "SoC": {
+    "p_from_pacf_of_stl_remainder": 10,
+    "acf_at_orbit_lag": 0.806
+  },
+  "att_err": {
+    "p_from_pacf_of_stl_remainder": 3,
+    "acf_at_orbit_lag": 0.079
+  },
+  "payload_P": {
+    "p_from_pacf_of_stl_remainder": 10,
+    "acf_at_orbit_lag": 0.002
+  }
+}

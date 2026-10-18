@@ -1,0 +1,9 @@
+anomaly_type,residual_naive,residual_snaive,residual_arimax,residual_xgboost,residual_gru,residual_ensemble,limit_check,isolation_forest
+stuck,0.375,0.375,0.5,0.625,0.625,0.5,0.625,0.0
+thermal_runaway,0.0,1.0,1.0,0.0,0.6,1.0,0.8,1.0
+payload_fault,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+noise_burst,0.8,0.0,0.9,0.8,0.9,0.9,1.0,0.3
+drift,0.333,0.778,0.778,0.889,1.0,1.0,1.0,0.111
+v_drop,0.6,1.0,1.0,1.0,1.0,0.8,1.0,0.8
+spike,1.0,0.333,1.0,1.0,1.0,1.0,0.833,0.0
+batt_fade,0.5,0.0,0.0,1.0,0.667,0.167,1.0,1.0

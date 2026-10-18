@@ -18,3 +18,4 @@ reports/m4_env_report.json
 data/generated/forecasts/
 *.npz
 results/*.npz
+data/generated/*.csv.gz

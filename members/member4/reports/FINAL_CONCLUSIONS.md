@@ -1,18 +1,16 @@
 # Final conclusions — Member 4
 
-_Generated 2026-11-22 by `evaluation/m4_final_report.py` from the measured result files. Earth-observation data: `synthetic_eo_devcheck`._
-
-> ⚠️ **The Earth-observation inputs in this run are the SYNTHETIC stand-in** (`synthetic_eo_devcheck`). Image and fusion numbers below only prove the pipeline runs; they are **not results**, and every image-dependent conclusion is withheld. Run the full pipeline on Sen1Floods11 (`python members/member4/m4_run_all.py`) to fill them in.
+_Generated 2026-11-22 by `evaluation/m4_final_report.py` from the measured result files. Earth-observation data: `sen1floods11_handlabeled`._
 
 ## Answers to the research questions
 
-**Primary — can a lightweight missing-modality-aware fusion model keep satellite-health and flood detection reliable when inputs are missing?** **Withheld: needs the real Sen1Floods11 run**
+**Primary — can a lightweight missing-modality-aware fusion model keep satellite-health and flood detection reliable when inputs are missing?** **Not supported**. Averaged over the five missing-input scenarios, gated fusion keeps 95% of its all-inputs flood F1 (0.829 vs 0.877); early fusion averages 0.839 and late fusion 0.840 in the same scenarios.
 
 **RQ2 — does forecast-residual detection beat static limits and Isolation Forest?** **Supported**. On simulated telemetry the best residual detector (`residual_gru`) reaches test event-F1 0.875 vs 0.384 for limit checks (which raise 10.53 false alarms/day) and 0.706 for Isolation Forest. On **real** OPSSAT-AD telemetry the AR forecast-residual detector reaches F1 0.862 (MCC 0.828, AUC-ROC 0.954) vs 0.444 (Isolation Forest) and 0.323 (limits).
 
-**RQ3 — can missing telemetry channels be reconstructed so detection degrades gracefully?** **Partially supported**. Cross-channel reconstruction cuts the error on the six physically linked channels by 88% on average versus mean-filling; attitude error and payload power cannot be reconstructed (no physical link). In the fused model, reconstructing lost channels instead of zero-filling them raises health F1 from 0.73 to 0.792 (1 channel lost) and from 0.697 to 0.745 (2 lost), but not when half the channels are lost (0.674 zero-filled vs 0.625 reconstructed, 4 of 8): degradation is graceful only while most channels remain. Image-dependent part provisional (synthetic EO).
+**RQ3 — can missing telemetry channels be reconstructed so detection degrades gracefully?** **Supported**. Cross-channel reconstruction cuts the error on the six physically linked channels by 88% on average versus mean-filling; attitude error and payload power cannot be reconstructed (no physical link). In the fused model, reconstructing lost channels instead of zero-filling them raises health F1 from 0.707 to 0.753 (1 channel lost) and from 0.73 to 0.768 (2 lost), but not when half the channels are lost (0.669 zero-filled vs 0.683 reconstructed, 4 of 8): degradation is graceful only while most channels remain.
 
-**RQ4 — do the learned trust weights shift sensibly when an input is degraded or removed?** **Withheld: needs the real Sen1Floods11 run**
+**RQ4 — do the learned trust weights shift sensibly when an input is degraded or removed?** **Supported**. Mean α_opt for the flood decision: clear 0.567, cloudy 0.546, payload-fault-damaged 0.251, optical missing 0.000.
 
 Decision rules are stated in `evaluation/m4_final_report.py` and applied mechanically.
 
@@ -84,95 +82,91 @@ The deep models: GRU mean skill at 5 min = 0.598, LSTM = 0.587; best overall = `
 
 ## 3. Earth-observation baselines (flood)
 
-> Synthetic stand-in: pipeline check only.
-
 | model | split | accuracy | precision | recall | F1 | AUROC | AUPRC | n |
 |---|---|---|---|---|---|---|---|---|
-| optical_only | test | 0.938 | 0.922 | 0.991 | 0.955 | 0.996 | 0.998 | 160 |
-| optical_only | bolivia | 0.900 | 0.788 | 0.963 | 0.867 | 0.983 | 0.976 | 80 |
-| sar_only | test | 0.944 | 0.938 | 0.982 | 0.959 | 0.989 | 0.995 | 160 |
-| sar_only | bolivia | 0.925 | 0.818 | 1.000 | 0.900 | 0.990 | 0.981 | 80 |
-| optical_sar_cnn | test | 0.938 | 0.922 | 0.991 | 0.955 | 0.991 | 0.996 | 160 |
-| optical_sar_cnn | bolivia | 0.925 | 0.839 | 0.963 | 0.897 | 0.981 | 0.965 | 80 |
+| optical_only | test | 0.923 | 0.895 | 0.872 | 0.883 | 0.950 | 0.945 | 352 |
+| optical_only | bolivia | 0.862 | 0.781 | 0.962 | 0.862 | 0.983 | 0.984 | 58 |
+| sar_only | test | 0.892 | 0.832 | 0.846 | 0.839 | 0.919 | 0.904 | 352 |
+| sar_only | bolivia | 0.759 | 0.731 | 0.731 | 0.731 | 0.865 | 0.842 | 58 |
+| optical_sar_cnn | test | 0.932 | 0.904 | 0.889 | 0.897 | 0.958 | 0.957 | 352 |
+| optical_sar_cnn | bolivia | 0.948 | 0.926 | 0.962 | 0.943 | 0.983 | 0.981 | 58 |
 
 ## 4. Fusion, missing inputs and ablations
-
-> Synthetic EO stand-in: pipeline check only.
 
 **All inputs present, test (mean ± std over seeds)**
 
 | model | health F1 | flood F1 |
 |---|---|---|
-| telemetry only | 0.839 ± 0.045 | 0.732 ± 0.005 |
-| optical only | 0.677 ± 0.004 | 0.918 ± 0.004 |
-| SAR only | 0.677 ± 0.006 | 0.955 ± 0.002 |
-| early fusion | 0.833 ± 0.033 | 0.955 ± 0.004 |
-| late fusion | 0.833 ± 0.050 | 0.961 ± 0.002 |
-| equal weights | 0.808 ± 0.071 | 0.953 ± 0.002 |
-| **gated fusion (ours)** | 0.822 ± 0.017 | 0.952 ± 0.000 |
-| − missing token | 0.817 ± 0.047 | 0.955 ± 0.003 |
-| − telemetry in gate | 0.852 ± 0.012 | 0.950 ± 0.006 |
-| − modality dropout | 0.802 ± 0.021 | 0.954 ± 0.003 |
-| − forecast residuals | 0.690 ± 0.047 | 0.953 ± 0.001 |
-| − multi-task loss | 0.808 ± 0.025 | 0.952 ± 0.000 |
+| telemetry only | 0.754 ± 0.000 | 0.561 ± 0.000 |
+| optical only | 0.682 ± 0.000 | 0.846 ± 0.000 |
+| SAR only | 0.677 ± 0.000 | 0.812 ± 0.000 |
+| early fusion | 0.787 ± 0.000 | 0.882 ± 0.000 |
+| late fusion | 0.773 ± 0.000 | 0.880 ± 0.000 |
+| equal weights | 0.835 ± 0.000 | 0.886 ± 0.000 |
+| **gated fusion (ours)** | 0.775 ± 0.000 | 0.877 ± 0.000 |
+| − missing token | 0.837 ± 0.000 | 0.891 ± 0.000 |
+| − telemetry in gate | 0.841 ± 0.000 | 0.868 ± 0.000 |
+| − modality dropout | 0.840 ± 0.000 | 0.859 ± 0.000 |
+| − forecast residuals | 0.580 ± 0.000 | 0.889 ± 0.000 |
+| − multi-task loss | 0.749 ± 0.000 | 0.884 ± 0.000 |
 
 **Flood F1 under missing / degraded inputs (test, mean over seeds)**
 
 | scenario | early_fusion | gated_fusion | late_fusion |
 |---|---|---|---|
-| all_present | 0.955 | 0.952 | 0.961 |
-| missing_optical | 0.950 | 0.952 | 0.953 |
-| missing_sar | 0.911 | 0.924 | 0.922 |
-| missing_telemetry | 0.955 | 0.952 | 0.961 |
-| only_optical | 0.910 | 0.924 | 0.923 |
-| only_sar | 0.951 | 0.952 | 0.950 |
-| only_telemetry | 0.429 | 0.740 | 0.733 |
-| cloud_25 | 0.957 | 0.952 | 0.958 |
-| cloud_50 | 0.956 | 0.952 | 0.946 |
-| cloud_75 | 0.955 | 0.951 | 0.939 |
-| cloud_100 | 0.952 | 0.951 | 0.951 |
+| all_present | 0.882 | 0.877 | 0.880 |
+| missing_optical | 0.820 | 0.816 | 0.810 |
+| missing_sar | 0.835 | 0.820 | 0.836 |
+| missing_telemetry | 0.882 | 0.868 | 0.887 |
+| only_optical | 0.834 | 0.828 | 0.837 |
+| only_sar | 0.822 | 0.816 | 0.830 |
+| only_telemetry | 0.024 | 0.513 | 0.213 |
+| cloud_25 | 0.869 | 0.869 | 0.859 |
+| cloud_50 | 0.853 | 0.844 | 0.848 |
+| cloud_75 | 0.850 | 0.829 | 0.820 |
+| cloud_100 | 0.825 | 0.814 | 0.796 |
 
 **Telemetry channels lost (gated fusion, health task)**
 
 | channels lost | health F1 zero-filled | health F1 reconstructed |
 |---|---|---|
-| 1.000 | 0.730 | 0.792 |
-| 2.000 | 0.697 | 0.745 |
-| 4.000 | 0.674 | 0.625 |
+| 1.000 | 0.707 | 0.753 |
+| 2.000 | 0.730 | 0.768 |
+| 4.000 | 0.669 | 0.683 |
 
 **Ablations (test, mean over seeds)**
 
 | variant | flood F1 (all) | flood F1 (missing avg) | health F1 (all) | health F1 (missing avg) |
 |---|---|---|---|---|
-| **gated fusion (ours)** | 0.952 | 0.941 | 0.822 | 0.591 |
-| − missing token | 0.955 | 0.935 | 0.817 | 0.737 |
-| − telemetry in gate | 0.950 | 0.939 | 0.852 | 0.674 |
-| − modality dropout | 0.954 | 0.917 | 0.802 | 0.723 |
-| − forecast residuals | 0.953 | 0.938 | 0.690 | 0.604 |
-| − multi-task loss | 0.952 | 0.936 | 0.808 | 0.733 |
+| **gated fusion (ours)** | 0.877 | 0.829 | 0.775 | 0.417 |
+| − missing token | 0.891 | 0.828 | 0.837 | 0.736 |
+| − telemetry in gate | 0.868 | 0.830 | 0.841 | 0.391 |
+| − modality dropout | 0.859 | 0.833 | 0.840 | 0.518 |
+| − forecast residuals | 0.889 | 0.838 | 0.580 | 0.642 |
+| − multi-task loss | 0.884 | 0.840 | 0.749 | 0.408 |
 
 **RQ4: optical trust weight by situation (gated fusion, test)**
 
 | situation | mean α_opt (flood gate) |
 |---|---|
-| clear | 0.137 |
-| cloudy | 0.093 |
-| payload fault | 0.014 |
-| +100 % cloud | 0.041 |
+| clear | 0.567 |
+| cloudy | 0.546 |
+| payload fault | 0.251 |
+| +100 % cloud | 0.522 |
 | optical missing | 0.000 |
 
 ## 5. Telemetry channel reconstruction (test, 60-min gaps, MAE)
 
 | channel | cross_channel | cross_channel_4_lost | ffill | mean_fill |
 |---|---|---|---|---|
-| batt_temp | 0.1351 | 0.1306 | 0.3924 | 0.2919 |
-| panel_temp | 0.4204 | 0.4363 | 41.1830 | 29.9603 |
+| batt_temp | 0.1354 | 0.1298 | 0.3924 | 0.2919 |
+| panel_temp | 0.4117 | 0.4179 | 41.1830 | 29.9603 |
 | bus_V | 0.0176 | 0.0209 | 0.2566 | 0.1801 |
-| batt_I | 0.0301 | 0.0450 | 1.1010 | 0.6950 |
-| solar_I | 0.0746 | 0.0865 | 1.7333 | 1.4742 |
-| SoC | 0.1294 | 0.1432 | 4.0304 | 3.0585 |
+| batt_I | 0.0293 | 0.0436 | 1.1010 | 0.6950 |
+| solar_I | 0.0741 | 0.0860 | 1.7333 | 1.4742 |
+| SoC | 0.1287 | 0.1395 | 4.0304 | 3.0585 |
 | att_err | 0.0200 | 0.0200 | 0.0219 | 0.0200 |
-| payload_P | 1.1915 | 1.1850 | 1.2849 | 1.2229 |
+| payload_P | 1.2239 | 1.2277 | 1.2849 | 1.2229 |
 
 ## Limitations (state these in the paper)
 

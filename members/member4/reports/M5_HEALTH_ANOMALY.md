@@ -59,21 +59,11 @@ Figures: `health_score_timeline.png`, `health_per_type_recall.png`, `health_dete
 `m4_opssat_benchmark.py` applies the same ideas per segment: naive and AR(5) residuals, limits, and Isolation Forest on the 18 provided features. The threshold comes from the official train segments; the 529 test segments are scored once with precision, recall, F1, MCC, AUC-ROC and AUC-PR.
 **Status:** code and tests are ready. Results must be produced on the laptop (the dataset cannot be downloaded from the cloud workspace) → `results/m4_opssat_results.csv`, then copy the table here.
 
-            model split  event_precision  event_recall  event_F1  AUPRC  mean_delay_min  false_alarms_per_day
-   residual_naive   val            1.000         0.917     0.957  0.312         242.500                 0.000
-   residual_naive  test            1.000         0.556     0.714  0.209         135.700                 0.000
-  residual_snaive   val            1.000         0.583     0.737  0.205           5.857                 0.000
-  residual_snaive  test            0.737         0.667     0.700  0.344          20.583                 0.294
-  residual_arimax   val            1.000         0.917     0.957  0.323           5.364                 0.000
-  residual_arimax  test            1.000         0.778     0.875  0.434          35.357                 0.000
- residual_xgboost   val            0.944         1.000     0.971  0.500          71.042                 0.118
- residual_xgboost  test            0.895         0.667     0.764  0.559          11.000                 0.118
-     residual_gru   val            0.964         1.000     0.982  0.381         256.000                 0.059
-     residual_gru  test            1.000         0.778     0.875  0.401          57.357                 0.000
-residual_ensemble   val            0.971         1.000     0.985  0.356         154.667                 0.059
-residual_ensemble  test            0.900         0.778     0.834  0.459          22.071                 0.118
-      limit_check   val            0.302         0.917     0.454  0.328          23.591                10.059
-      limit_check  test            0.245         0.889     0.384  0.400          22.750                10.529
- isolation_forest   val            0.922         0.667     0.774  0.362          25.062                 0.235
- isolation_forest  test            0.969         0.556     0.706  0.336          41.900                 0.059
+| Detector | precision | recall | F1 | MCC | AUC-ROC | AUC-PR |
+|---|---|---|---|---|---|---|
+| residual_naive | | | | | | |
+| residual_ar | | | | | | |
+| limit_check | | | | | | |
+| isolation_forest | | | | | | |
+
 Not done (optional per handbook): LSTM autoencoder.

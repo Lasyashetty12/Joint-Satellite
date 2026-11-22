@@ -81,11 +81,11 @@ class TrainScaler:
 
     def save(self, path: Path) -> None:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        Path(path).write_text(json.dumps({"mean": self.mean_, "std": self.std_}, indent=1))
+        Path(path).write_text(json.dumps({"mean": self.mean_, "std": self.std_}, indent=1), encoding="utf-8")
 
     @classmethod
     def load(cls, path: Path) -> "TrainScaler":
-        d = json.loads(Path(path).read_text())
+        d = json.loads(Path(path).read_text(encoding="utf-8"))
         s = cls(); s.mean_, s.std_ = d["mean"], d["std"]
         return s
 

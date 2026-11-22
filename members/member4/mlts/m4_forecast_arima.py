@@ -80,7 +80,7 @@ def forecast_all(y: np.ndarray, X: np.ndarray, beta: np.ndarray, phi: np.ndarray
 def fit_predict(df: pd.DataFrame, masks: dict, normal: np.ndarray, horizons=HORIZONS,
                 channels=C.CHANNELS, orders_path: Path = C.RESULTS / "m4_arima_orders.json", verbose=True, **_):
     horizons = list(horizons)
-    orders = json.loads(Path(orders_path).read_text()) if Path(orders_path).exists() else {}
+    orders = json.loads(Path(orders_path).read_text(encoding="utf-8")) if Path(orders_path).exists() else {}
     tr = np.where(masks["train"])[0][-FIT_DAYS * C.samples_per_day():]
     X_all = design(df)
     pred = np.full((len(df), len(horizons), len(channels)), np.nan, dtype=np.float32)

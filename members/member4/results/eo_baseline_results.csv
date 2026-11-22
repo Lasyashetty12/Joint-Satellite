@@ -1,0 +1,10 @@
+member,model,dataset,split,accuracy,precision,recall,F1,AUROC,AUPRC,n,threshold,seed
+member4,optical_only,synthetic_eo_devcheck,val,0.9875,0.9773,1.0,0.9885,0.9969,0.9972,80,0.1164,42
+member4,optical_only,synthetic_eo_devcheck,test,0.9375,0.9224,0.9907,0.9554,0.9955,0.9979,160,0.1164,42
+member4,optical_only,synthetic_eo_devcheck,bolivia,0.9,0.7879,0.963,0.8667,0.9832,0.9757,80,0.1164,42
+member4,sar_only,synthetic_eo_devcheck,val,0.9875,0.9773,1.0,0.9885,0.9981,0.9984,80,0.2366,42
+member4,sar_only,synthetic_eo_devcheck,test,0.9438,0.9381,0.9815,0.9593,0.9891,0.9949,160,0.2366,42
+member4,sar_only,synthetic_eo_devcheck,bolivia,0.925,0.8182,1.0,0.9,0.9895,0.9807,80,0.2366,42
+member4,optical_sar_cnn,synthetic_eo_devcheck,val,0.9875,0.9773,1.0,0.9885,0.9969,0.9972,80,0.3664,42
+member4,optical_sar_cnn,synthetic_eo_devcheck,test,0.9375,0.9224,0.9907,0.9554,0.9907,0.9955,160,0.3664,42
+member4,optical_sar_cnn,synthetic_eo_devcheck,bolivia,0.925,0.8387,0.963,0.8966,0.9811,0.965,80,0.3664,42

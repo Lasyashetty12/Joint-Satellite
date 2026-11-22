@@ -10,7 +10,7 @@ Model  : 1-layer GRU (hidden 64); its last state + the KNOWN-FUTURE sunlit flags
 Training windows: train split, stride 4, window and targets fully normal (no labelled
 anomaly, no NaN). Best epoch chosen on the validation loss; seeds fixed.
 
-The file is named "lstm" as in the handbook; set CELL = "lstm" to swap the GRU for an LSTM.
+The same code trains a GRU (default) or an LSTM (cell="lstm"); the ladder runs both.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ EPOCHS = 15
 BATCH = 512
 LR = 2e-3
 TRAIN_STRIDE = 4
-CHECKPOINT = C.MEMBER_DIR / "checkpoints" / "m4_gru_forecaster.pt"
+CHECKPOINT_DIR = C.MEMBER_DIR / "checkpoints"
 
 
 def input_frame(df: pd.DataFrame) -> pd.DataFrame:
@@ -82,7 +82,7 @@ def make_windows(Z: np.ndarray, ends: np.ndarray) -> np.ndarray:
 
 def fit_predict(df: pd.DataFrame, masks: dict, normal: np.ndarray, horizons=HORIZONS,
                 channels=C.CHANNELS, seed: int = 42, epochs: int = EPOCHS, verbose=True,
-                save_checkpoint: bool = True, **_):
+                save_checkpoint: bool = True, cell: str = CELL, **_):
     import torch
 
     torch.manual_seed(seed); np.random.seed(seed)
@@ -109,7 +109,7 @@ def fit_predict(df: pd.DataFrame, masks: dict, normal: np.ndarray, horizons=HORI
     va = np.where(masks["val"] & ok)[0][::TRAIN_STRIDE * 2]
 
     FUT = future_sunlit(df)
-    model = build_model(Z.shape[1], H_MAX * len(channels))
+    model = build_model(Z.shape[1], H_MAX * len(channels), cell=cell)
     opt = torch.optim.Adam(model.parameters(), lr=LR)
     loss_fn = torch.nn.MSELoss()
     Xva = torch.from_numpy(make_windows(Z, va)); Fva = torch.from_numpy(FUT[va]); Yva = torch.from_numpy(T[va].reshape(len(va), -1))
@@ -132,13 +132,14 @@ def fit_predict(df: pd.DataFrame, masks: dict, normal: np.ndarray, horizons=HORI
         if vl < best:
             best = vl; best_state = {k: v.clone() for k, v in model.state_dict().items()}
         if verbose:
-            print(f"  GRU epoch {ep + 1}/{epochs}  train {tot / len(perm):.4f}  val {vl:.4f}  ({time.time() - t0:.0f}s)")
+            print(f"  {cell.upper()} epoch {ep + 1}/{epochs}  train {tot / len(perm):.4f}  val {vl:.4f}  ({time.time() - t0:.0f}s)")
     model.load_state_dict(best_state); model.eval()
 
     if save_checkpoint:
-        CHECKPOINT.parent.mkdir(parents=True, exist_ok=True)
+        ckpt = CHECKPOINT_DIR / f"m4_{cell}_forecaster.pt"
+        ckpt.parent.mkdir(parents=True, exist_ok=True)
         torch.save({"state": best_state, "mu": mu.to_dict(), "sd": sd.to_dict(), "ysd": ysd.tolist(),
-                    "W": W, "H_MAX": H_MAX, "cell": CELL, "hidden": HIDDEN}, CHECKPOINT)
+                    "W": W, "H_MAX": H_MAX, "cell": cell, "hidden": HIDDEN}, ckpt)
 
     pred = np.full((n, len(horizons), len(channels)), np.nan, np.float32)
     ends = np.where(~np.isnan(Z).any(axis=1))[0]

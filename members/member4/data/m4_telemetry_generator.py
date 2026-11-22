@@ -39,7 +39,7 @@ CHANNELS = ["batt_temp", "panel_temp", "bus_V", "batt_I", "solar_I", "SoC", "att
 
 
 def load_config(path: Path | str = DEFAULT_CONFIG, **overrides) -> dict:
-    cfg = json.loads(Path(path).read_text())
+    cfg = json.loads(Path(path).read_text(encoding="utf-8"))
     cfg.update({k: v for k, v in overrides.items() if v is not None})
     return cfg
 
@@ -231,7 +231,7 @@ def save(out: dict, summary: dict, out_dir: Path) -> dict:
     out["telemetry"].to_parquet(paths["telemetry"], index=False)
     out["labels"].to_csv(paths["labels"], index=False)
     out["dropouts"].to_csv(paths["dropouts"], index=False)
-    paths["summary"].write_text(json.dumps(summary, indent=2))
+    paths["summary"].write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return paths
 
 

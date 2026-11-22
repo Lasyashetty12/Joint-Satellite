@@ -1,0 +1,101 @@
+{
+ "sar_only": {
+  "history": [
+   {
+    "epoch": 1,
+    "train_loss": 0.19445148315280675,
+    "val_AUPRC": 0.975240379501202
+   },
+   {
+    "epoch": 2,
+    "train_loss": 0.07954609049484133,
+    "val_AUPRC": 0.9973556159602671
+   },
+   {
+    "epoch": 3,
+    "train_loss": 0.060103417839854956,
+    "val_AUPRC": 0.9983769160351097
+   },
+   {
+    "epoch": 4,
+    "train_loss": 0.06157981604337692,
+    "val_AUPRC": 0.9973887737426195
+   },
+   {
+    "epoch": 5,
+    "train_loss": 0.06854067384265364,
+    "val_AUPRC": 0.9973887737426195
+   }
+  ],
+  "best_val_AUPRC": 0.9983769160351097,
+  "threshold": 0.23656606301665314,
+  "seconds": 43,
+  "dataset": "synthetic_eo_devcheck"
+ },
+ "optical_only": {
+  "history": [
+   {
+    "epoch": 1,
+    "train_loss": 0.5966658785939216,
+    "val_AUPRC": 0.7732203404318367
+   },
+   {
+    "epoch": 2,
+    "train_loss": 0.14720465764403343,
+    "val_AUPRC": 0.9878798144456262
+   },
+   {
+    "epoch": 3,
+    "train_loss": 0.08630624674260616,
+    "val_AUPRC": 0.974036973429323
+   },
+   {
+    "epoch": 4,
+    "train_loss": 0.10334904864430428,
+    "val_AUPRC": 0.9958120040538844
+   },
+   {
+    "epoch": 5,
+    "train_loss": 0.12355543561279773,
+    "val_AUPRC": 0.9972283057117971
+   }
+  ],
+  "best_val_AUPRC": 0.9972283057117971,
+  "threshold": 0.1164202623069287,
+  "seconds": 52,
+  "dataset": "synthetic_eo_devcheck"
+ },
+ "optical_sar_cnn": {
+  "history": [
+   {
+    "epoch": 1,
+    "train_loss": 0.45122158862650397,
+    "val_AUPRC": 0.952530871568189
+   },
+   {
+    "epoch": 2,
+    "train_loss": 0.10089404704049229,
+    "val_AUPRC": 0.9851855674859774
+   },
+   {
+    "epoch": 3,
+    "train_loss": 0.08959254734218121,
+    "val_AUPRC": 0.9972283057117973
+   },
+   {
+    "epoch": 4,
+    "train_loss": 0.09830486662685871,
+    "val_AUPRC": 0.9967884009857917
+   },
+   {
+    "epoch": 5,
+    "train_loss": 0.10966485552489758,
+    "val_AUPRC": 0.9972283057117971
+   }
+  ],
+  "best_val_AUPRC": 0.9972283057117973,
+  "threshold": 0.366404274106026,
+  "seconds": 47,
+  "dataset": "synthetic_eo_devcheck"
+ }
+}

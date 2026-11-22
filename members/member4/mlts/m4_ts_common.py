@@ -38,7 +38,7 @@ for _sub in ("data", "mlts", "models", "training", "evaluation", "explainability
 
 
 def load_config(path: Path = CONFIG) -> dict:
-    return json.loads(Path(path).read_text())
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def samples_per_orbit(cfg: dict | None = None) -> int:
@@ -112,7 +112,7 @@ def fourier_terms(ts: pd.Series, period_s: float, k: int = 3, start=None) -> pd.
 def load_splits(path: Path = SPLITS) -> dict:
     if not Path(path).exists():
         raise SystemExit(f"{path} not found. Run: python members/member4/data/m4_make_splits.py")
-    return json.loads(Path(path).read_text())
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def split_masks(df: pd.DataFrame, splits: dict | None = None) -> dict[str, np.ndarray]:

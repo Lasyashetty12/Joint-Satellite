@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 MEMBER_DIR = Path(__file__).resolve().parents[1]
-for sub in ["data", "mlts", "models", "training", "evaluation", "explainability"]:
-    p = str(MEMBER_DIR / sub)
+for sub in ["", "data", "mlts", "models", "training", "evaluation", "explainability", "dashboard"]:
+    p = str(MEMBER_DIR / sub) if sub else str(MEMBER_DIR)
     if p not in sys.path:
         sys.path.insert(0, p)

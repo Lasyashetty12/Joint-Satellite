@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
                       "anomaly_events": int(len(ev)),
                       "events_per_type": ev["anomaly_type"].value_counts().to_dict()}
     info["gap_rows"] = int((df["split"] == "gap").sum())
-    C.SPLITS.write_text(json.dumps(info, indent=2))
+    C.SPLITS.write_text(json.dumps(info, indent=2), encoding="utf-8")
     print(json.dumps(info, indent=2))
     print(f"\nsaved split column -> {args.telemetry}\nsaved boundaries   -> {C.SPLITS}")
     return 0

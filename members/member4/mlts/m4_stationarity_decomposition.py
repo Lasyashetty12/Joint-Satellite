@@ -149,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     rep = pd.DataFrame(rows)
     rep.to_csv(C.RESULTS / "stationarity_report.csv", index=False)
     pd.DataFrame(strength).to_csv(C.RESULTS / "m4_seasonal_strength.csv", index=False)
-    (C.RESULTS / "m4_arima_orders.json").write_text(json.dumps(orders, indent=2))
+    (C.RESULTS / "m4_arima_orders.json").write_text(json.dumps(orders, indent=2), encoding="utf-8")
     print(rep.to_string(index=False))
     print("\n", pd.DataFrame(strength).to_string(index=False))
     print("\nSuggested AR orders:", json.dumps(orders))

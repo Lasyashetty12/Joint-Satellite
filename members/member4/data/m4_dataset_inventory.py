@@ -199,7 +199,7 @@ def run_eo(root: Path, tau: float, plot: bool) -> dict:
         "flood_frac_mean": round(float(df["flood_frac"].mean()), 4),
         "official_split_counts": df["official_split"].value_counts().to_dict(),
     }
-    (REPORTS / "m4_eo_inventory_summary.json").write_text(json.dumps(summary, indent=2, default=str))
+    (REPORTS / "m4_eo_inventory_summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
     if plot:
         # plot the chip with the most flood pixels, a good visual check
         best = df.sort_values("flood_frac", ascending=False).iloc[0]["chip_id"]
@@ -256,7 +256,7 @@ def run_opssat(root: Path) -> dict:
                          f"https://zenodo.org/records/12588359 into that folder.")
     result = {"source": "https://zenodo.org/records/12588359", "files": [inspect_csv(f) for f in files]}
     REPORTS.mkdir(parents=True, exist_ok=True)
-    (REPORTS / "m4_opssat_inventory.json").write_text(json.dumps(result, indent=2, default=str))
+    (REPORTS / "m4_opssat_inventory.json").write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
     return result
 
 

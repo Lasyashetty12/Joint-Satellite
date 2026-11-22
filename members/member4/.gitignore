@@ -19,3 +19,6 @@ data/generated/forecasts/
 *.npz
 results/*.npz
 data/generated/*.csv.gz
+data/generated/eo/
+data/generated/passes/
+data/generated/m4_reconstruction.npz

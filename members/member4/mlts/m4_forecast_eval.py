@@ -1,7 +1,7 @@
 """
 m4_forecast_eval.py - run the forecasting ladder and score every model identically.
 
-Ladder: naive -> seasonal-naive -> ARIMAX -> XGBoost -> GRU   (simple first, handbook rule 15)
+Ladder: naive -> seasonal-naive -> ARIMAX -> XGBoost -> GRU -> LSTM   (simple first, handbook rule 15)
 
 Scoring rule (same for every model):
   * origin t and target t+h must both lie in the scored split (val or test)
@@ -40,7 +40,7 @@ import m4_ts_common as C  # noqa: E402
 from m4_forecast_naive import HORIZONS, naive, seasonal_naive  # noqa: E402
 
 PRED_DIR = C.GEN_DIR / "forecasts"
-MODEL_ORDER = ["naive", "snaive", "arimax", "xgboost", "gru"]
+MODEL_ORDER = ["naive", "snaive", "arimax", "xgboost", "gru", "lstm"]
 EPS = 1e-6
 
 
@@ -55,9 +55,9 @@ def runner(name: str):
     if name == "xgboost":
         import m4_forecast_xgboost as m
         return m.fit_predict
-    if name == "gru":
+    if name in ("gru", "lstm"):
         import m4_forecast_lstm as m
-        return m.fit_predict
+        return lambda *a, **kw: m.fit_predict(*a, cell=name, **kw)
     raise ValueError(name)
 
 
@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
     C.RESULTS.mkdir(parents=True, exist_ok=True)
 
     info_path = C.RESULTS / "m4_forecast_info.json"
-    all_info = json.loads(info_path.read_text()) if info_path.exists() else {}
+    all_info = json.loads(info_path.read_text(encoding="utf-8")) if info_path.exists() else {}
     res_path = C.RESULTS / "forecast_results.csv"
     old = pd.read_csv(res_path) if res_path.exists() else pd.DataFrame()
     rows = []
@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     res["model"] = pd.Categorical(res["model"], MODEL_ORDER, ordered=True)
     res = res.sort_values(["split", "channel", "horizon", "model"]).reset_index(drop=True)
     res.round(5).to_csv(res_path, index=False)
-    info_path.write_text(json.dumps(all_info, indent=1, default=str))
+    info_path.write_text(json.dumps(all_info, indent=1, default=str), encoding="utf-8")
 
     val = res[res.split == "val"]
     base = val[val.model == "naive"].set_index(["channel", "horizon"])["MAE"]

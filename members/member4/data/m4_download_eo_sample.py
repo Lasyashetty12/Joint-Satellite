@@ -147,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         new += download(it["name"], out / "splits" / it["name"].rsplit("/", 1)[-1])
     (out / "m4_download_manifest.json").write_text(json.dumps(
         {"event": args.event, "chips": chips, "n_files": len(need), "approx_MB": round(total_mb, 1),
-         "source": f"gs://{BUCKET}/{HAND}", "summary": summary}, indent=2))
+         "source": f"gs://{BUCKET}/{HAND}", "summary": summary}, indent=2), encoding="utf-8")
     print(f"Done. {new} new files downloaded (existing files skipped). Manifest: {out / 'm4_download_manifest.json'}")
     return 0
 

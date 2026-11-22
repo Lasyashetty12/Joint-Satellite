@@ -3,7 +3,7 @@ m4_plot_forecasts.py - figures for the forecasting ladder (Milestone 4).
 
     forecast_skill_heatmap.png   skill vs naive = 1 - MAE/MAE_naive (val), models x channels, per horizon
     forecast_actual_vs_pred.png  one validation day: actual vs best model at h = 10, with residual band
-    forecast_gru_loss.png        GRU train/val loss per epoch
+    forecast_gru_loss.png        GRU and LSTM train/val loss per epoch
 
 Run from the repository root (after mlts/m4_forecast_eval.py):
     python members/member4/explainability/m4_plot_forecasts.py
@@ -24,7 +24,7 @@ import m4_ts_common as C  # noqa: E402
 import m4_plot_style as S  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
-MODEL_ORDER = ["naive", "snaive", "arimax", "xgboost", "gru"]
+MODEL_ORDER = ["naive", "snaive", "arimax", "xgboost", "gru", "lstm"]
 SHOW = ["SoC", "bus_V", "panel_temp", "batt_I"]
 
 
@@ -85,15 +85,18 @@ def actual_vs_pred(path, h=10, day=60):
 
 
 def gru_loss(path):
-    info = json.loads((C.RESULTS / "m4_forecast_info.json").read_text())
-    hist = pd.DataFrame(info.get("gru", {}).get("history", []))
-    if hist.empty:
+    """Train/validation loss per epoch for the deep forecasters (GRU and LSTM), one panel each."""
+    info = json.loads((C.RESULTS / "m4_forecast_info.json").read_text(encoding="utf-8"))
+    cells = [c for c in ("gru", "lstm") if info.get(c, {}).get("history")]
+    if not cells:
         return None
-    fig, ax = plt.subplots(figsize=(6, 3.5))
-    ax.plot(hist.epoch, hist.train_loss, color=S.SERIES[0], marker="o", ms=3, label="train")
-    ax.plot(hist.epoch, hist.val_loss, color=S.SERIES[1], marker="o", ms=3, label="validation")
-    ax.set_xlabel("epoch"); ax.set_ylabel("MSE (standardised)"); ax.legend()
-    ax.set_title("GRU forecaster: loss per epoch")
+    fig, axes = plt.subplots(1, len(cells), figsize=(6 * len(cells), 3.5), sharey=True, squeeze=False)
+    for ax, c in zip(axes[0], cells):
+        hist = pd.DataFrame(info[c]["history"])
+        ax.plot(hist.epoch, hist.train_loss, color=S.SERIES[0], marker="o", ms=3, label="train")
+        ax.plot(hist.epoch, hist.val_loss, color=S.SERIES[1], marker="o", ms=3, label="validation")
+        ax.set_xlabel("epoch"); ax.set_title(f"{c.upper()} forecaster: loss per epoch")
+    axes[0][0].set_ylabel("MSE (standardised)"); axes[0][0].legend()
     return S.save(fig, path)
 
 

@@ -1,0 +1,4 @@
+split,passes,health_pos,eo_pos,coupled_payload_fault,cloudy,unique_patches
+train,1600,913,1010,88,248,320
+val,400,210,205,43,51,80
+test,400,208,235,33,66,193

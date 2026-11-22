@@ -25,7 +25,7 @@ import m4_plot_style as S  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 ORDER = ["limit_check", "isolation_forest", "residual_naive", "residual_snaive", "residual_arimax",
-         "residual_xgboost", "residual_gru", "residual_ensemble"]
+         "residual_xgboost", "residual_gru", "residual_lstm", "residual_ensemble"]
 
 
 def timeline(path):

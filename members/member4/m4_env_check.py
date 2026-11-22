@@ -212,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.save_report:
         out = MEMBER_DIR / "reports" / "m4_env_report.json"
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(report, indent=2))
+        out.write_text(json.dumps(report, indent=2), encoding="utf-8")
         print(f"\nReport saved to {out}")
     return 0 if report["all_required_ok"] else 1
 

@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import m4_ts_common as C  # noqa: E402
 import m4_metrics as M  # noqa: E402
 
-FORECASTERS = ["naive", "snaive", "arimax", "xgboost", "gru"]
+FORECASTERS = ["naive", "snaive", "arimax", "xgboost", "gru", "lstm"]
 EWMA_SPAN = 10
 MERGE_GAP = 10              # 5 min
 TOL = 120                   # 60 min after a labelled event

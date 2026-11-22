@@ -10,12 +10,12 @@
   "payload_on_fraction": 0.0275,
   "n_anomaly_events": 59,
   "events_per_type": {
-    "noise_burst": 10,
     "payload_fault": 10,
+    "noise_burst": 10,
     "drift": 9,
     "stuck": 8,
-    "batt_fade": 6,
     "spike": 6,
+    "batt_fade": 6,
     "thermal_runaway": 5,
     "v_drop": 5
   },

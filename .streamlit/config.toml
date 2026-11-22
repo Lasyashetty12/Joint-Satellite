@@ -1,0 +1,16 @@
+# Dashboard theme (Member 4: members/member4/dashboard/m4_app.py). Read when Streamlit is started
+# from the repository root:  streamlit run members/member4/dashboard/m4_app.py
+[theme]
+base = "light"
+primaryColor = "#1F5FB8"
+backgroundColor = "#F2F4F6"
+secondaryBackgroundColor = "#E7EBEF"
+textColor = "#172231"
+borderColor = "#D3D9E0"
+font = "Archivo:https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&display=swap"
+headingFont = "Archivo:https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&display=swap"
+baseRadius = "6px"
+
+[theme.sidebar]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#EEF1F4"

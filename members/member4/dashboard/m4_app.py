@@ -29,14 +29,17 @@ from plotly.subplots import make_subplots
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import m4_dashboard_data as D  # noqa: E402
+import m4_theme as T  # noqa: E402
 import m4_ts_common as C  # noqa: E402
 
 st.set_page_config(page_title="Satellite Health & Flood Monitor", page_icon="🛰️", layout="wide")
+T.inject()
 
 BLUE, ORANGE, AQUA, YELLOW, MAGENTA, GREEN = "#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"
-GREY, RED = "#8a8984", "#e34948"
+GREY, RED = "#8a8984", T.BAD
 MOD_COL = {"tel": ORANGE, "opt": BLUE, "sar": AQUA}
 MOD_NAME = {"tel": "telemetry", "opt": "optical", "sar": "SAR"}
+PROPER = {"xgboost": "XGBoost", "arimax": "ARIMAX", "gru": "GRU", "lstm": "LSTM", "naive": "Naive", "snaive": "Seasonal naive"}
 NICE = {"tel_only": "telemetry only", "opt_only": "optical only", "sar_only": "SAR only", "early_fusion": "early fusion",
         "late_fusion": "late fusion", "equal_weights": "equal weights", "gated_fusion": "gated fusion (ours)",
         "gated_zero_fill": "− missing token", "gated_no_tel_in_gate": "− telemetry in gate",
@@ -64,22 +67,23 @@ RES = get_results()
 SYN = D.eo_is_synthetic(RES)
 
 # ------------------------------------------------------------------ sidebar
-st.sidebar.title("🛰️ Satellite Health & Flood Monitor")
-st.sidebar.caption("Member 4 · forecasting-based health monitoring + missing-modality-aware fusion")
+st.sidebar.markdown("<div class='m4-brand'>Satellite Health &amp; Flood Monitor</div>"
+                    "<div class='m4-brand-sub'>Forecasting-based health monitoring and flood detection "
+                    "that copes with missing inputs. Member 4.</div>", unsafe_allow_html=True)
 page = st.sidebar.radio("Page", ["Mission overview", "Live demo", "Model accuracy", "Final conclusions"])
-if SYN:
-    st.sidebar.error("Image data: SYNTHETIC stand-in (pipeline check). Image and fusion numbers are not results. "
-                     "Run the pipeline on Sen1Floods11 to replace them.")
-else:
-    st.sidebar.success("Image data: Sen1Floods11 (real Sentinel-1/2)")
-st.sidebar.caption("Telemetry: simulated generator v1 + real OPSSAT-AD benchmark. "
-                   "Telemetry–image pairing is a simulation assumption (virtual passes).")
+img_state = (T.pill("Synthetic stand-in", "warn") + "<br>Image and fusion numbers only check the pipeline. "
+             "Run the pipeline on Sen1Floods11 to replace them.") if SYN else \
+    (T.pill("Sen1Floods11", "ok") + "<br>Real Sentinel-1 and Sentinel-2 chips.")
+st.sidebar.markdown(f"<div class='m4-data'><b>Image data</b><br>{img_state}</div>"
+                    "<div class='m4-data'><b>Telemetry</b><br>Simulated satellite (generator v1) and the real "
+                    "ESA OPS-SAT benchmark. Pairing telemetry with images is simulated (virtual passes).</div>",
+                    unsafe_allow_html=True)
 
 
 def synth_banner():
     if SYN:
-        st.warning("⚠️ Earth-observation inputs are the **synthetic stand-in**: image and fusion numbers on this page "
-                   "only prove the pipeline works. Telemetry results are measured.", icon="⚠️")
+        st.warning("The Earth images here are the **synthetic stand-in**, so image and fusion numbers on this page "
+                   "only show that the pipeline runs. Telemetry results are measured.", icon=":material/science:")
 
 
 def metric_or_dash(v, fmt="{:.3f}"):
@@ -88,47 +92,56 @@ def metric_or_dash(v, fmt="{:.3f}"):
 
 # ================================================================== 1. overview
 def page_overview():
-    st.title("Satellite health & flood detection that keeps working when inputs go missing")
+    st.title("Satellite health and flood detection that keeps working when inputs go missing")
     st.markdown(
-        "A satellite sends two kinds of data: **telemetry** (its own health: battery, temperatures, voltage, "
-        "pointing) and **Earth images** (optical Sentinel-2 and radar Sentinel-1). This system watches both. "
-        "It **forecasts** every telemetry channel and raises an alarm when reality departs from the forecast, "
-        "and it detects **floods** in the images. A **reliability gate** decides, pass by pass, how much to trust "
-        "each input, so the system keeps working when clouds hide the ground, the camera is damaged, or data is lost.")
+        "<p class='m4-lede'>A satellite sends down its own health readings (battery, temperatures, voltage, currents) "
+        "and pictures of the Earth (optical Sentinel-2 and radar Sentinel-1). This system forecasts every health "
+        "reading and raises an alarm when reality breaks the forecast, finds floods in the pictures, and decides "
+        "pass by pass how far to trust each input when clouds, a damaged camera or lost data get in the way.</p>",
+        unsafe_allow_html=True)
     s = RES["summary"]
-    c = st.columns(4)
-    c[0].metric("Best forecaster (5 min ahead)", str(s.get("forecast_best_model", "–")).upper(),
-                f"skill {metric_or_dash(s.get('forecast_best_skill_h10'))} vs naive")
-    c[1].metric("Health detection, simulated test", metric_or_dash(s.get("health_best_test_F1")),
-                f"event-F1 · {s.get('health_best_detector', '')}")
-    c[2].metric("Health detection, REAL OPSSAT-AD", metric_or_dash(s.get("opssat_best_F1")),
-                f"F1 · MCC {metric_or_dash(s.get('opssat_best_MCC'))}")
+    proper = PROPER
+    best = str(s.get("forecast_best_model", "–"))
+    det = str(s.get("health_best_detector", "")).replace("residual_", "")
+    items = [("Best forecaster, 5 min ahead", proper.get(best, best),
+              f"Skill {metric_or_dash(s.get('forecast_best_skill_h10'))} over the naive forecast", False),
+             ("Fault detection, simulated satellite", metric_or_dash(s.get("health_best_test_F1")),
+              f"Event F1 on the test days, {proper.get(det, det.replace('_', ' '))} residuals", False),
+             ("Fault detection, real OPS-SAT", metric_or_dash(s.get("opssat_best_F1")),
+              f"Segment F1, MCC {metric_or_dash(s.get('opssat_best_MCC'))}", False)]
     if SYN:
-        c[3].metric("Flood F1 kept when inputs missing", "pending", "needs the real Sen1Floods11 run", delta_color="off")
+        items.append(("Flood F1 kept with inputs missing", "Pending", "Needs the real Sen1Floods11 run", True))
     else:
-        c[3].metric("Flood F1 kept when inputs missing", metric_or_dash(s.get("fusion_flood_F1_kept"), "{:.0%}"),
-                    "gated fusion, test, 5 missing-input scenarios", delta_color="off")
-    st.subheader("How it works")
-    st.graphviz_chart("""
-    digraph G { rankdir=LR; node [shape=box, style="rounded,filled", fillcolor="#f4f3ef", color="#c9c8c3", fontname="Helvetica", fontsize=11];
-      tel [label="Telemetry window\\n60 min × 8 channels"]; fc [label="Forecaster\\n(GRU / LSTM / XGBoost / ARIMAX)"];
-      res [label="Forecast residuals\\n= surprise per channel"]; te [label="Telemetry encoder\\nGRU"];
-      opt [label="Optical patch\\nSentinel-2"]; sar [label="SAR patch\\nSentinel-1"];
-      oe [label="CNN encoder\\nResNet-18"]; se [label="CNN encoder\\nResNet-18"];
-      gate [label="Reliability gate\\nmissing tokens + α weights", fillcolor="#dfeafb", color="#2a78d6"];
-      h [label="Health score\\n(satellite fault?)"]; f [label="Flood score\\n(Earth anomaly?)"];
-      tel -> fc -> res -> te; tel -> te; opt -> oe; sar -> se; te -> gate; oe -> gate; se -> gate; gate -> h; gate -> f; }""")
+        items.append(("Flood F1 kept with inputs missing", metric_or_dash(s.get("fusion_flood_F1_kept"), "{:.0%}"),
+                      "Gated fusion, test, 5 missing-input cases", False))
+    st.markdown(T.readout(items), unsafe_allow_html=True)
+    st.subheader("How a pass flows through the system")
+    st.graphviz_chart(f"""
+    digraph G {{ rankdir=LR; bgcolor="transparent"; nodesep=0.25; ranksep=0.45;
+      node [shape=box, style="rounded,filled", fillcolor="{T.PANEL}", color="{T.RULE}", fontname="Archivo, Helvetica",
+            fontsize=11, fontcolor="{T.INK}", penwidth=1.2];
+      edge [color="{T.SLATE}", arrowsize=0.6, penwidth=1.0];
+      tel [label="Telemetry window\\n60 min, 8 channels", color="{T.TEL}", penwidth=2];
+      fc [label="Forecaster\\nGRU, LSTM, XGBoost, ARIMAX"];
+      res [label="Forecast residuals\\nsurprise per channel"]; te [label="Telemetry encoder\\nGRU"];
+      opt [label="Optical patch\\nSentinel-2", color="{T.OPT}", penwidth=2]; sar [label="Radar patch\\nSentinel-1", color="{T.SAR}", penwidth=2];
+      oe [label="Image encoder\\nResNet-18"]; se [label="Image encoder\\nResNet-18"];
+      gate [label="Reliability gate\\nmissing tokens and trust weights α", fillcolor="{T.INK}", fontcolor="white", color="{T.INK}"];
+      h [label="Health score\\nis the satellite faulty?"]; f [label="Flood score\\nis the ground flooded?"];
+      tel -> fc -> res -> te; tel -> te; opt -> oe; sar -> se; te -> gate; oe -> gate; se -> gate; gate -> h; gate -> f; }}""")
     st.subheader("Research questions")
     rq = {"Primary": "Does missing-modality-aware fusion keep health and flood detection reliable when inputs are missing?",
           "RQ2": "Does forecast-residual detection beat static limit checks and Isolation Forest?",
           "RQ3": "Can missing telemetry channels be reconstructed so detection degrades gracefully?",
           "RQ4": "Do the learned trust weights shift sensibly when an input is degraded or removed?"}
     key = {"Primary": "primary", "RQ2": "RQ2", "RQ3": "RQ3", "RQ4": "RQ4"}
+    verdict = {True: ("Supported", "ok"), False: ("Not supported", "bad"), "partial": ("Partly supported", "warn"),
+               None: ("Withheld until real images", "idle")}
+    rows = ""
     for k, q in rq.items():
-        v = s.get(key[k])
-        badge = {True: "✅ supported", False: "❌ not supported", "partial": "🟡 partially supported",
-                 None: "⏳ withheld (needs real images)"}.get(v, "–")
-        st.markdown(f"**{k}** — {q}  \n&nbsp;&nbsp;&nbsp;{badge}")
+        txt, kind = verdict.get(s.get(key[k]), ("Not evaluated", "idle"))
+        rows += f"<div><div class='id'>{k}</div><div class='q'>{T.esc(q)}</div><div>{T.pill(txt, kind)}</div></div>"
+    st.markdown(f"<div class='m4-rq'>{rows}</div>", unsafe_allow_html=True)
 
 
 # ================================================================== 2. live demo
@@ -165,27 +178,7 @@ def stream_figure(d: pd.DataFrame, upto: int, channels: list[str]) -> go.Figure:
     fig.update_xaxes(range=[x.iloc[0], x.iloc[-1]])
     fig.update_layout(height=150 * n + 90, hovermode="x unified", margin=dict(l=10, r=10, t=80, b=10),
                       legend=dict(orientation="h", y=1.0, yanchor="bottom", x=0),
-                      title=dict(text="Telemetry stream · blue band = the satellite pass · red = labelled anomaly",
-                                 font_size=13, y=0.995, yanchor="top"))
-    return fig
-
-
-def alpha_chart(results: dict, baseline: dict | None) -> go.Figure:
-    fig = make_subplots(rows=1, cols=2, subplot_titles=("Flood decision gate", "Health decision gate"), shared_yaxes=True)
-    for col, gate in ((1, "alpha_eo"), (2, "alpha_health")):
-        rows = []
-        if baseline is not None:
-            rows.append(("proposed · all inputs", baseline["gated_fusion"][gate]))
-        rows.append(("proposed · this scenario", results["gated_fusion"][gate]))
-        for k, mod in enumerate(("tel", "opt", "sar")):
-            fig.add_trace(go.Bar(y=[r[0] for r in rows], x=[r[1][k] for r in rows], orientation="h",
-                                 name=f"α {MOD_NAME[mod]}", marker_color=MOD_COL[mod], showlegend=col == 1,
-                                 text=[f"{r[1][k]:.2f}" if r[1][k] >= 0.06 else "" for r in rows],
-                                 textposition="inside", insidetextanchor="middle",
-                                 marker_line=dict(color="white", width=1)), 1, col)
-    fig.update_layout(barmode="stack", height=240, margin=dict(l=10, r=10, t=50, b=10),
-                      legend=dict(orientation="h", y=-0.25, traceorder="normal"),
-                      xaxis=dict(range=[0, 1]), xaxis2=dict(range=[0, 1]), yaxis=dict(autorange="reversed"))
+                      title=dict(text="Telemetry stream", font_size=15, y=0.995, yanchor="top"))
     return fig
 
 
@@ -200,27 +193,29 @@ def page_live():
         return
     L = get_live()
     tab = D.test_pass_table(L)
-    st.markdown("**Step 1 — choose a stored test pass.** Passes with a payload fault come first: in those, the "
-                "telemetry fault and a damaged optical image arrive together.")
+    T.step(1, "Choose a stored test pass",
+           "Passes with a payload fault are listed first: in those, the telemetry fault and a damaged optical "
+           "image arrive together.")
     choice = st.selectbox("Test pass", tab.label.tolist(), index=0)
     pid = int(tab[tab.label == choice].pass_id.iloc[0])
     row = tab[tab.pass_id == pid].iloc[0]
     if st.session_state.get("pid") != pid:
         st.session_state.update(pid=pid, cursor=60, playing=False)
 
-    st.markdown("**Step 2 — replay the telemetry as a live stream** (actual vs forecast, residual band, anomaly score).")
+    T.step(2, "Replay the telemetry as a live stream",
+           "Each reading is compared with what the forecaster expected one step earlier. The anomaly score at the "
+           "bottom rises when the readings leave the forecast band.")
     c1, c2, c3, c4 = st.columns([1, 1, 1, 3])
-    if c1.button("▶ Play", width="stretch"):
+    if c1.button("Play", icon=":material/play_arrow:", type="primary", width="stretch"):
         st.session_state.playing = True
-    if c2.button("⏸ Pause", width="stretch"):
+    if c2.button("Pause", icon=":material/pause:", width="stretch"):
         st.session_state.playing = False
-    if c3.button("⏭ Jump to end", width="stretch"):
+    if c3.button("Jump to end", icon=":material/skip_next:", width="stretch"):
         st.session_state.update(cursor=10 ** 6, playing=False)
-    speed = c4.slider("Replay speed (samples per tick; 1 sample = 30 s)", 2, 30, 8)
+    speed = c4.slider("Replay speed, readings per tick (one reading = 30 s)", 2, 30, 8)
     channels = st.multiselect("Channels on screen", C.CHANNELS,
                               default=["SoC", "bus_V", "batt_I", "batt_temp", "payload_P"])
     stream = D.telemetry_stream(L, pid)
-
     @st.fragment(run_every=0.5 if st.session_state.get("playing") else None)
     def live_stream():
         n = len(stream)
@@ -232,37 +227,48 @@ def page_live():
         cur = min(n, st.session_state.cursor)
         t = stream.timestamp.iloc[cur - 1]
         alarm = bool("score" in stream and np.nan_to_num(stream.score.iloc[cur - 1]) > stream.threshold.iloc[0])
-        k1, k2, k3 = st.columns(3)
-        k1.metric("Satellite clock (UTC)", t.strftime("%Y-%m-%d %H:%M"))
-        k2.metric("Health monitor", "🔴 ALARM" if alarm else "🟢 nominal")
-        k3.metric("Replay progress", f"{cur / n:.0%}")
-        st.plotly_chart(stream_figure(stream, cur, channels or ["SoC"]), width="stretch",
-                        key=f"stream_{pid}")
+        in_pass = bool(stream.in_pass.iloc[cur - 1])
+        st.markdown(
+            "<div class='m4-console'>"
+            f"<div><div class='k'>Satellite clock, UTC</div><div class='v'>{t.strftime('%d %b %Y  %H:%M')}</div></div>"
+            f"<div><div class='k'>Health monitor</div><div class='v'>"
+            f"{T.pill('Alarm: forecast broken', 'bad') if alarm else T.pill('Nominal', 'ok')}</div></div>"
+            f"<div><div class='k'>Window</div><div class='v'>{'Inside the pass' if in_pass else 'Before the pass'}</div></div>"
+            f"<div class='m4-progress'><div class='k'>Replay {cur / n:.0%}</div>"
+            f"<div class='track'><div class='fill' style='width:{cur / n:.1%}'></div></div></div>"
+            "</div>", unsafe_allow_html=True)
+        T.chart(stream_figure(stream, cur, channels or ["SoC"]), key=f"stream_{pid}")
 
     live_stream()
+    st.markdown("<p class='m4-note'>Shaded blue: the 60-minute pass the models see. Shaded red: a labelled "
+                "anomaly. Orange band: forecast plus or minus two standard deviations.</p>", unsafe_allow_html=True)
 
-    st.markdown("**Step 3 — the Earth images taken during this pass.**")
+    T.step(3, "Look at the Earth images taken during the pass")
     import m4_eo_patches as EP
-    tg = st.columns([1, 1, 1, 1.2])
+    tg = st.columns([1, 1, 1, 1.25])
     st.session_state.setdefault("cloud", 0.0)
     img = D.optical_image(L, row, st.session_state.get("cloud", 0.0))
-    tg[0].image(EP.to_rgb(img, L.stats), caption=f"Optical (Sentinel-2) · {row.opt_degrade}"
-                + (f" {row.opt_severity:.2f}" if row.opt_degrade != "none" else ""), width="stretch")
+    deg = "clear" if row.opt_degrade == "none" else f"{row.opt_degrade}, severity {row.opt_severity:.2f}"
+    tg[0].image(EP.to_rgb(img, L.stats), caption=f"Optical, Sentinel-2 ({deg})", width="stretch")
     vv = L.eo["s1"][int(row.patch_id)][0].astype(np.float32)
     vv = np.clip((vv - np.percentile(vv, 2)) / (np.percentile(vv, 98) - np.percentile(vv, 2) + 1e-6), 0, 1)
-    tg[1].image((vv * 255).astype(np.uint8), caption="SAR VV (Sentinel-1) · water looks dark", width="stretch")
+    tg[1].image((vv * 255).astype(np.uint8), caption="Radar VV, Sentinel-1 (water looks dark)", width="stretch")
     mask = L.eo["mask"][int(row.patch_id)]
-    rgb = np.stack([np.where(mask == 1, 42, np.where(mask == 0, 242, 190)),
-                    np.where(mask == 1, 120, np.where(mask == 0, 230, 190)),
-                    np.where(mask == 1, 214, np.where(mask == 0, 201, 190))], -1).astype(np.uint8)
-    tg[2].image(rgb, caption="Ground-truth label · blue = water", width="stretch")
-    tg[3].markdown(f"**Ground truth for this pass**  \n"
-                   f"- Satellite health: {'🔴 fault — ' + row.anomaly_type.replace(';', ', ') if row.health_label else '🟢 nominal'}  \n"
-                   f"- Flood in the patch: {'🌊 yes' if row.eo_label else 'no'}  \n"
-                   f"- Optical image: {'damaged by the payload fault' if row.coupled_payload_fault else row.opt_degrade}  \n"
-                   f"- Patch {int(row.patch_id)} · {L.meta.event.iloc[int(row.patch_id)]}")
+    rgb = np.stack([np.where(mask == 1, 31, np.where(mask == 0, 236, 200)),
+                    np.where(mask == 1, 95, np.where(mask == 0, 239, 205)),
+                    np.where(mask == 1, 184, np.where(mask == 0, 242, 211))], -1).astype(np.uint8)
+    tg[2].image(rgb, caption="Ground truth (blue = water, grey = no data)", width="stretch")
+    health_truth = (T.pill("Fault: " + row.anomaly_type.replace(";", ", ").replace("_", " "), "bad")
+                    if row.health_label else T.pill("Nominal", "ok"))
+    flood_truth = T.pill("Flood", "warn") if row.eo_label else T.pill("No flood", "idle")
+    optical = "damaged by the payload fault" if row.coupled_payload_fault else deg
+    tg[3].markdown(f"<div class='m4-gate'><div class='gname'>Ground truth for this pass</div>"
+                   f"<p>Satellite: {health_truth}</p><p>Ground: {flood_truth}</p>"
+                   f"<p class='m4-note'>Optical image: {T.esc(optical)}.<br>Patch {int(row.patch_id)} from the "
+                   f"{T.esc(L.meta.event.iloc[int(row.patch_id)])} flood event.</p></div>", unsafe_allow_html=True)
 
-    st.markdown("**Steps 4–7 — run the integrated model, then toggle what is available and run again.**")
+    T.step(4, "Take inputs away and run the models again",
+           "Switch inputs off, add cloud, or kill telemetry sensors. Both models rerun on the same pass.")
     t1, t2, t3, t4 = st.columns([1.1, 1, 1.4, 1])
     with t1:
         st.caption("Inputs available")
@@ -272,56 +278,64 @@ def page_live():
     drop = t3.multiselect("Telemetry channels lost", C.CHANNELS, default=[])
     fill = t4.radio("Lost channels are", ["zero-filled", "reconstructed"], index=1)
     if not (use_tel or use_opt or use_sar):
-        st.error("At least one input must be available.")
+        st.error("Keep at least one input switched on: the models need something to look at.")
         return
+    present = (int(use_tel), int(use_opt), int(use_sar))
     base = D.run_pass(L, pid)
-    out = D.run_pass(L, pid, present=(int(use_tel), int(use_opt), int(use_sar)), cloud=cloud, drop=drop,
+    out = D.run_pass(L, pid, present=present, cloud=cloud, drop=drop,
                      fill="recon" if fill == "reconstructed" else "zero")
     g, e = out["gated_fusion"], out["early_fusion"]
-    st.markdown("**Step 8 — simple fusion vs the proposed model on the same pass.**")
+
+    T.step(5, "See how much the proposed model trusts each input",
+           "Bar widths are the trust weights α. They always add up to 1, and a missing input gets exactly 0. "
+           "The thin bar underneath is the same pass with every input present.")
+    st.markdown(T.trust_strip([("Flood decision", g["alpha_eo"], base["gated_fusion"]["alpha_eo"]),
+                               ("Satellite-health decision", g["alpha_health"], base["gated_fusion"]["alpha_health"])],
+                              present), unsafe_allow_html=True)
+
+    T.step(6, "Compare simple fusion with the proposed model",
+           "Thresholds come from the validation split. A check mark means the decision matches the ground truth.")
     cc = st.columns(2)
     for col, (name, r) in zip(cc, (("gated_fusion", g), ("early_fusion", e))):
         with col:
             st.markdown(f"##### {D.DEMO_MODELS[name]}")
             m1, m2 = st.columns(2)
             m1.metric("Satellite fault probability", f"{r['p_health']:.2f}",
-                      f"{r['p_health'] - base[name]['p_health']:+.2f} vs all inputs")
-            m2.metric("Flood probability", f"{r['p_flood']:.2f}", f"{r['p_flood'] - base[name]['p_flood']:+.2f} vs all inputs")
+                      f"{r['p_health'] - base[name]['p_health']:+.2f} vs all inputs", delta_color="off")
+            m2.metric("Flood probability", f"{r['p_flood']:.2f}",
+                      f"{r['p_flood'] - base[name]['p_flood']:+.2f} vs all inputs", delta_color="off")
             ok_h = r["health_alarm"] == bool(row.health_label); ok_f = r["flood"] == bool(row.eo_label)
-            st.markdown(f"Health: **{'🔴 FAULT' if r['health_alarm'] else '🟢 nominal'}** {'✅' if ok_h else '❌'} · "
-                        f"Flood: **{'🌊 FLOOD' if r['flood'] else 'no flood'}** {'✅' if ok_f else '❌'}  \n"
-                        f"<span style='color:#8a8984;font-size:0.85em'>✅/❌ = matches ground truth · thresholds from validation</span>",
-                        unsafe_allow_html=True)
-    st.markdown("**Trust weights (α) of the proposed model** — how much each input counts; missing inputs get exactly 0.")
-    st.plotly_chart(alpha_chart(out, base), width="stretch")
-    a0, a1 = base["gated_fusion"]["alpha_eo"], g["alpha_eo"]
-    shift = ", ".join(f"α {MOD_NAME[m]} {a0[k]:.2f} → {a1[k]:.2f}" for k, m in enumerate(("tel", "opt", "sar")) if abs(a1[k] - a0[k]) > 0.01)
-    st.caption("Flood-gate shift vs all inputs: " + (shift or "no change"))
+            mark = lambda ok: "<span title='matches ground truth'>✓</span>" if ok else "<span title='wrong'>✗</span>"
+            st.markdown("<div class='m4-verdict'>"
+                        f"{T.pill('Fault', 'bad') if r['health_alarm'] else T.pill('Nominal', 'ok')} {mark(ok_h)}"
+                        f"&nbsp;&nbsp;{T.pill('Flood', 'warn') if r['flood'] else T.pill('No flood', 'idle')} {mark(ok_f)}"
+                        "</div>", unsafe_allow_html=True)
     if drop:
-        st.markdown("**Lost telemetry channels during the pass**" + (" — reconstructed from the other channels" if out["reconstructed"] is not None else " — zero-filled"))
+        st.markdown("##### Lost telemetry channels during the pass, "
+                    + ("rebuilt from the working channels" if out["reconstructed"] is not None else "filled with zeros"))
         win = D.telemetry_stream(L, pid)
         win = win[win.in_pass].reset_index(drop=True)
         fig = make_subplots(rows=1, cols=len(drop), subplot_titles=drop)
         for k, ch in enumerate(drop, start=1):
-            fig.add_trace(go.Scatter(x=win.timestamp, y=win[ch], name="actual (hidden from the model)", line=dict(color=BLUE),
+            fig.add_trace(go.Scatter(x=win.timestamp, y=win[ch], name="actual (hidden from the model)", line=dict(color=BLUE, width=2),
                                      showlegend=k == 1), 1, k)
             if out["reconstructed"] is not None:
                 fig.add_trace(go.Scatter(x=win.timestamp, y=out["reconstructed"][:, k - 1], name="reconstructed",
-                                         line=dict(color=ORANGE, dash="dot"), showlegend=k == 1), 1, k)
+                                         line=dict(color=ORANGE, dash="dot", width=2), showlegend=k == 1), 1, k)
         fig.update_layout(height=260, **LAYOUT)
-        st.plotly_chart(fig, width="stretch")
-    status = []
-    status.append("🔴 **Satellite fault detected**" if g["health_alarm"] else "🟢 Satellite healthy")
-    status.append("🌊 **Flood detected**" if g["flood"] else "No flood detected")
+        T.chart(fig)
+    parts = [T.pill("Satellite fault detected", "bad") if g["health_alarm"] else T.pill("Satellite healthy", "ok"),
+             T.pill("Flood detected", "warn") if g["flood"] else T.pill("No flood", "idle")]
     if g["alpha_eo"][1] < 0.2 and use_opt:
-        status.append("optical image distrusted")
-    st.info("**Final status (proposed model):** " + " · ".join(status))
+        parts.append(T.pill("Optical image distrusted", "idle"))
+    st.markdown("<div class='m4-final'><span class='k'>Final status from the proposed model</span>"
+                + "".join(parts) + "</div>", unsafe_allow_html=True)
 
 
 # ================================================================== 3. accuracy
 def page_accuracy():
-    st.title("Model accuracy — every number here was measured")
-    tabs = st.tabs(["Forecasting (incl. GRU & LSTM)", "Health anomaly detection", "Earth observation", "Fusion & robustness",
+    st.title("Model accuracy: every number here was measured")
+    tabs = st.tabs(["Forecasting, incl. GRU and LSTM", "Health anomaly detection", "Earth observation", "Fusion and robustness",
                     "Channel reconstruction"])
     with tabs[0]:
         fr = RES["forecast"]
@@ -338,29 +352,29 @@ def page_accuracy():
         fig = go.Figure()
         for m in models:
             v = d[d.model == m].set_index("channel").reindex(C.CHANNELS)
-            fig.add_bar(x=C.CHANNELS, y=1 - v.MAE / base.reindex(C.CHANNELS), name=m.upper(), marker_color=D.MODEL_COLORS[m],
-                        customdata=v.MAE, hovertemplate="%{x}<br>skill %{y:.2f}<br>MAE %{customdata:.4f}<extra>" + m.upper() + "</extra>")
-        fig.update_layout(barmode="group", height=380, yaxis_title="skill vs naive (1 − MAE/MAE naive) · higher is better",
-                          yaxis_range=[-1, 1], title=f"Forecast skill per channel ({split}, h = {h}) · naive = 0 by definition", **{k: v for k, v in LAYOUT.items() if k != 'hovermode'})
-        st.plotly_chart(fig, width="stretch")
+            fig.add_bar(x=C.CHANNELS, y=1 - v.MAE / base.reindex(C.CHANNELS), name=PROPER.get(m, m), marker_color=D.MODEL_COLORS[m],
+                        customdata=v.MAE, hovertemplate="%{x}<br>skill %{y:.2f}<br>MAE %{customdata:.4f}<extra>" + PROPER.get(m, m) + "</extra>")
+        fig.update_layout(barmode="group", height=380, yaxis_title="skill over naive (higher is better)",
+                          yaxis_range=[-1, 1], title=f"Forecast skill per channel, {split} split (naive scores 0 by definition)", **{k: v for k, v in LAYOUT.items() if k != 'hovermode'})
+        T.chart(fig)
         g2 = go.Figure()
         for m in models:
             v = fr[(fr.split == split) & (fr.model == m) & (fr.channel == ch)].sort_values("horizon")
-            g2.add_scatter(x=v.horizon * 0.5, y=v.MAE, mode="lines+markers", name=m.upper(), line=dict(color=D.MODEL_COLORS[m], width=2),
+            g2.add_scatter(x=v.horizon * 0.5, y=v.MAE, mode="lines+markers", name=PROPER.get(m, m), line=dict(color=D.MODEL_COLORS[m], width=2),
                            marker=dict(size=8))
         g2.update_layout(height=320, xaxis_title="minutes ahead", yaxis_title=f"MAE [{C.UNITS[ch]}]",
                          title=f"{ch}: error grows with the horizon", **LAYOUT)
-        st.plotly_chart(g2, width="stretch")
+        T.chart(g2)
         info = RES["forecast_info"]
         cells = [c for c in ("gru", "lstm") if info.get(c, {}).get("history")]
         if cells:
             g3 = go.Figure()
             for c in cells:
                 hst = pd.DataFrame(info[c]["history"])
-                g3.add_scatter(x=hst.epoch, y=hst.val_loss, name=f"{c.upper()} validation loss", mode="lines+markers",
+                g3.add_scatter(x=hst.epoch, y=hst.val_loss, name=f"{PROPER.get(c, c)} validation loss", mode="lines+markers",
                                line=dict(color=D.MODEL_COLORS[c], width=2))
             g3.update_layout(height=280, xaxis_title="epoch", yaxis_title="MSE (standardised)", title="Deep forecasters: GRU vs LSTM training", **LAYOUT)
-            st.plotly_chart(g3, width="stretch")
+            T.chart(g3)
         with st.expander("Table: MAE per channel and model"):
             st.dataframe(d.pivot_table(index="channel", columns="model", values="MAE", observed=True)[models].style.format("{:.4f}")
                          .highlight_min(axis=1, color="#dfeafb"), width="stretch")
@@ -374,13 +388,13 @@ def page_accuracy():
             fig = go.Figure()
             for split, col in (("val", BLUE), ("test", ORANGE)):
                 v = sim[sim.split == split].set_index("model").reindex(order)
-                fig.add_bar(x=[m.replace("residual_", "residual · ") for m in order], y=v.event_F1, name=split, marker_color=col,
+                fig.add_bar(x=[m.replace("residual_", "residual ") for m in order], y=v.event_F1, name=split, marker_color=col,
                             customdata=np.stack([v.false_alarms_per_day, v.mean_delay_min], -1),
                             hovertemplate="%{x}<br>event-F1 %{y:.3f}<br>false alarms/day %{customdata[0]:.2f}<br>delay %{customdata[1]:.0f} min<extra>" + split + "</extra>")
             fig.update_layout(barmode="group", height=380, yaxis_range=[0, 1.05], yaxis_title="event-F1",
                               title="Simulated telemetry: forecast-residual detectors vs limit checks and Isolation Forest",
                               **{k: v for k, v in LAYOUT.items() if k != 'hovermode'})
-            st.plotly_chart(fig, width="stretch")
+            T.chart(fig)
             st.dataframe(sim[sim.split == "test"][["model", "event_precision", "event_recall", "event_F1", "AUPRC", "mean_delay_min",
                                                     "false_alarms_per_day"]].set_index("model").style.format("{:.3f}"), width="stretch")
         op = RES["opssat"]
@@ -390,7 +404,7 @@ def page_accuracy():
             for k, met in enumerate(("F1", "MCC", "AUC_ROC")):
                 fig.add_bar(x=op.model, y=op[met], name=met.replace("_", "-"), marker_color=[BLUE, ORANGE, AQUA][k])
             fig.update_layout(barmode="group", height=340, yaxis_range=[0, 1.05], **{k: v for k, v in LAYOUT.items() if k != 'hovermode'})
-            st.plotly_chart(fig, width="stretch")
+            T.chart(fig)
         pt = RES["per_type"]
         if pt is not None:
             pt = pt.set_index("anomaly_type")
@@ -398,7 +412,7 @@ def page_accuracy():
                                        colorscale=[[0, "#eef4fc"], [0.5, "#2a78d6"], [1, "#0d3a73"]], zmin=0, zmax=1,
                                        text=pt.values.round(2), texttemplate="%{text}", colorbar=dict(title="recall")))
             fig.update_layout(height=380, title="Which detector catches which fault (all 59 events)", margin=dict(l=10, r=10, t=40, b=10))
-            st.plotly_chart(fig, width="stretch")
+            T.chart(fig)
     with tabs[2]:
         synth_banner()
         eo = RES["eo"]
@@ -411,7 +425,7 @@ def page_accuracy():
                 fig.add_bar(x=["validation", "test", "Bolivia (unseen event)"], y=v.F1, name=m.replace("_", " "), marker_color=[BLUE, ORANGE, AQUA][k])
             fig.update_layout(barmode="group", height=360, yaxis_range=[0, 1.05], yaxis_title="flood F1 (patch level)",
                               **{k: v for k, v in LAYOUT.items() if k != 'hovermode'})
-            st.plotly_chart(fig, width="stretch")
+            T.chart(fig)
             st.dataframe(eo.drop(columns=["member"]), width="stretch")
     with tabs[3]:
         synth_banner()
@@ -428,7 +442,7 @@ def page_accuracy():
                                    text=a.loc[order, "mean"].round(3), textposition="outside"))
             fig.update_layout(height=330, xaxis_range=[0, 1.1], xaxis_title="test F1 (mean ± std, 3 seeds)",
                               title="All inputs present", margin=dict(l=10, r=10, t=40, b=10), yaxis=dict(autorange="reversed"))
-            st.plotly_chart(fig, width="stretch")
+            T.chart(fig)
             scen = ["all_present", "missing_optical", "missing_sar", "missing_telemetry", "only_optical", "only_sar", "only_telemetry",
                     "cloud_25", "cloud_50", "cloud_75", "cloud_100"]
             fig = go.Figure()
@@ -438,7 +452,7 @@ def page_accuracy():
                             name=NICE[m], marker_color=col)
             fig.update_layout(barmode="group", height=380, yaxis_range=[0, 1.05], yaxis_title="test F1",
                               title="Robustness: inputs missing or clouded", **{k: v for k, v in LAYOUT.items() if k != 'hovermode'})
-            st.plotly_chart(fig, width="stretch")
+            T.chart(fig)
             al = RES["alpha"]
             if al is not None:
                 e = al[(al.model == "gated_fusion") & (al.gate == ("eo" if task == "eo" else "health"))]
@@ -452,7 +466,7 @@ def page_accuracy():
                                 marker_line=dict(color="white", width=1))
                 fig.update_layout(barmode="stack", height=340, yaxis_range=[0, 1.02], yaxis_title="mean trust weight",
                                   title="RQ4: trust weights of the proposed model by situation", **{k: v for k, v in LAYOUT.items() if k != 'hovermode'})
-                st.plotly_chart(fig, width="stretch")
+                T.chart(fig)
             ab = [m for m in ["gated_fusion", "gated_zero_fill", "gated_no_tel_in_gate", "gated_no_dropout", "gated_no_residuals", "gated_no_multitask"] if m in set(fu.model)]
             miss = ["missing_optical", "missing_sar", "missing_telemetry", "only_optical", "only_sar"]
             tbl = pd.DataFrame([{"variant": NICE[m],
@@ -469,7 +483,7 @@ def page_accuracy():
                             hovertemplate="%{x}<br>relative %{y:.3f}<br>MAE %{customdata:.4f}<extra>" + lab + "</extra>")
             fig.update_layout(barmode="group", height=360, yaxis_type="log", yaxis_title="MAE relative to train-mean fill (log)",
                               title="RQ3: reconstructing a lost telemetry channel (test, 60-min gaps)", **{k: v for k, v in LAYOUT.items() if k != 'hovermode'})
-            st.plotly_chart(fig, width="stretch")
+            T.chart(fig)
         fu = RES["fusion"]
         if fu is not None:
             hg = fu[(fu.model == "gated_fusion") & (fu.task == "health")]
@@ -479,7 +493,7 @@ def page_accuracy():
                 fig.add_scatter(x=[1, 2, 4], y=v, name=lab, mode="lines+markers", line=dict(color=col, width=2), marker=dict(size=8))
             fig.add_hline(y=hg[hg.scenario == "all_present"].F1.mean(), line=dict(color=GREY, dash="dot"), annotation_text="no channel lost")
             fig.update_layout(height=320, xaxis_title="telemetry channels lost per pass", yaxis_title="health F1 (gated fusion, test)", **LAYOUT)
-            st.plotly_chart(fig, width="stretch")
+            T.chart(fig)
 
 
 # ================================================================== 4. conclusions

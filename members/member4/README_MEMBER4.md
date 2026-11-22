@@ -62,6 +62,11 @@ streamlit run members/member4/dashboard/m4_app.py               # the dashboard
 3. **Model accuracy** — every measured result, interactive: forecasting (incl. GRU vs LSTM), health detection (simulated + real OPSSAT-AD, per-fault recall), EO baselines, fusion, robustness, α behaviour, ablations, reconstruction.
 4. **Final conclusions** — the generated report.
 
+**Look and feel.** `dashboard/m4_theme.py` holds the visual identity (light ground-station console for projectors:
+Archivo type, cool paper background, telemetry/optical/SAR colours, status pills with shape + word, the α "trust strip").
+`.streamlit/config.toml` at the repository root sets the matching Streamlit theme; it is only read when you start
+Streamlit from the repository root. The font loads from Google Fonts, so offline it falls back to Helvetica/Arial.
+
 ## Tests
 
 `python -m pytest members/member4/tests -q` — environment, generator, features/splits (no look-ahead), forecasting, metrics, EO/missing-modality/fusion models (α sum to 1, missing input gets α = 0 and cannot affect the output), orchestrator, and an end-to-end dashboard test of all pages.

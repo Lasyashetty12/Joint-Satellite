@@ -136,7 +136,8 @@ def test_pass_table(L: Live) -> pd.DataFrame:
                         np.where(p.health_label == 1, "satellite anomaly: " + p.anomaly_type.str.replace(";", ", "),
                                  np.where(p.opt_degrade == "cloud", "cloudy optical", "nominal")))
     p["flood"] = np.where(p.eo_label == 1, "flood", "no flood")
-    p["label"] = "pass " + p.pass_id.astype(str) + " · " + p.t_start.str[:16].str.replace("T", " ") + " · " + p.tag + " · " + p.flood
+    p["label"] = ("Pass " + p.pass_id.astype(str) + ", " + p.t_start.str[:16].str.replace("T", " ") + ": "
+                  + p.tag + ", " + p.flood)
     order = {"payload fault + damaged optical": 0, "cloudy optical": 2, "nominal": 3}
     p["rank"] = p.tag.map(order).fillna(1)
     return p.sort_values(["rank", "pass_id"])

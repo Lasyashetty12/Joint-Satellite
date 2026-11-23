@@ -86,13 +86,14 @@ class Live:
     mu: np.ndarray
     sd: np.ndarray
     labels: pd.DataFrame
+    qref: dict
 
 
 def missing_assets() -> list[str]:
     need = [PASS_DIR / "m4_passes.parquet", PASS_DIR / "m4_pass_telemetry.npz", C.TELEMETRY,
             C.GEN_DIR / "eo" / "m4_eo_patches.npz", CKPT / "m4_eo_optical_only.pt",
             CKPT / "m4_fusion_gated_fusion_s42.pt", CKPT / "m4_fusion_early_fusion_s42.pt",
-            CKPT / "m4_recon_SoC.json"]
+            CKPT / "m4_recon_SoC.json", C.GEN_DIR / "eo" / "m4_quality_ref.json"]
     return [str(p.relative_to(MEMBER_DIR)) for p in need if not p.exists()]
 
 
@@ -127,7 +128,8 @@ def load_live() -> Live:
                 fc_pred=fz["pred"][:, list(fz["horizons"]).index(1), :], fc_name=fc_name, fc_sd=fc_sd, scores=scores,
                 recon=np.load(rec_f)["recon"] if rec_f.exists() else None,
                 mu=df.loc[masks["train"] & normal, C.CHANNELS].mean().values,
-                sd=df.loc[masks["train"] & normal, C.CHANNELS].std().values, labels=labels)
+                sd=df.loc[masks["train"] & normal, C.CHANNELS].std().values, labels=labels,
+                qref=json.loads((EP.OUT_DIR / "m4_quality_ref.json").read_text(encoding="utf-8")))
 
 
 def test_pass_table(L: Live) -> pd.DataFrame:
@@ -164,9 +166,10 @@ def telemetry_input(L: Live, i: int, drop: list[str] | None = None, fill: str = 
             import m4_channel_reconstruction as RC
             s = int(L.passes.start_idx.iloc[i])
             rec_raw = RC.reconstruct(L.df, np.arange(s, s + tel.shape[0]), list(drop))
-            tel[:, ch] = (rec_raw - L.mu[ch]) / L.sd[ch]; nan[:, ch] = False
+            tel[:, ch] = (rec_raw - L.mu[ch]) / L.sd[ch]
         else:
-            tel[:, ch] = np.nan; nan[:, ch] = True
+            tel[:, ch] = 0.0
+        nan[:, ch] = True                       # lost channels stay flagged "not measured", rebuilt or not
     x = np.concatenate([np.nan_to_num(tel), np.nan_to_num(res) / 5.0, nan.astype(np.float32)], axis=1)
     return x[None].astype(np.float32), rec_raw
 
@@ -179,10 +182,14 @@ def run_pass(L: Live, pass_id: int, present=(1, 1, 1), cloud: float = 0.0, drop:
     row = L.passes.iloc[i]
     X, rec_raw = telemetry_input(L, i, drop, fill)
     img = optical_image(L, row, cloud)
-    O, p_opt_alone = encode(L.opt_enc, img[None])
+    import m4_missing_modality as MM
+    emb, p_opt_alone = encode(L.opt_enc, img[None])
+    q = MM.quality_features(img, L.qref)
+    O = np.concatenate([emb.astype(np.float32), q[None]], axis=1)
     S = L.sar_emb[int(row.patch_id)][None]
     M = np.asarray(present, np.float32)[None]
     out = {"pass_id": pass_id, "optical_image": img, "reconstructed": rec_raw, "row": row,
+           "quality": dict(zip(MM.QUALITY_NAMES, q.round(3).tolist())),
            "optical_only_prob": float(p_opt_alone[0])}
     with torch.no_grad():
         for name, m in L.models.items():

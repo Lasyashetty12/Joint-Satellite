@@ -30,13 +30,13 @@ import m4_plot_style as S  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 FUSION_ORDER = ["tel_only", "opt_only", "sar_only", "early_fusion", "late_fusion", "equal_weights", "gated_fusion"]
-ABLATIONS = ["gated_fusion", "gated_zero_fill", "gated_no_tel_in_gate", "gated_no_dropout", "gated_no_residuals",
+ABLATIONS = ["gated_fusion", "gated_no_quality", "gated_zero_fill", "gated_no_tel_in_gate", "gated_no_dropout", "gated_no_residuals",
              "gated_no_multitask"]
 NICE = {"tel_only": "telemetry only", "opt_only": "optical only", "sar_only": "SAR only", "early_fusion": "early fusion",
         "late_fusion": "late fusion", "equal_weights": "equal weights", "gated_fusion": "gated fusion (ours)",
         "gated_zero_fill": "− missing token", "gated_no_tel_in_gate": "− telemetry in gate",
         "gated_no_dropout": "− modality dropout", "gated_no_residuals": "− forecast residuals",
-        "gated_no_multitask": "− multi-task loss"}
+        "gated_no_multitask": "− multi-task loss", "gated_no_quality": "− quality check in gate"}
 COMPARE = [("early_fusion", S.SERIES[1]), ("late_fusion", S.SERIES[2]), ("gated_fusion", S.SERIES[0])]
 
 

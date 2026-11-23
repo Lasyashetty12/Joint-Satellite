@@ -74,6 +74,63 @@ def drop_channels(window: np.ndarray, k: int, rng: np.random.Generator) -> tuple
     return w, idx
 
 
+# ------------------------------------------------------------------ image quality check (version 2)
+# A simple screen in the spirit of standard Sentinel-2 cloud / defect masking: it does not know which
+# damage was simulated; every threshold is fitted on CLEAN training patches only.
+QUALITY_NAMES = ("white_cover", "bright_cover", "dark_cover", "flat_columns", "noise")
+NQ = len(QUALITY_NAMES)
+
+
+def _hf(x: np.ndarray) -> float:
+    """Mean high-frequency energy: |x - 3x3 box blur|, averaged over bands and pixels."""
+    from scipy.ndimage import uniform_filter
+    return float(np.mean(np.abs(x - uniform_filter(x, size=(1, 3, 3), mode="nearest"))))
+
+
+def fit_quality_reference(clean: np.ndarray) -> dict:
+    """clean: [N, C, H, W] undamaged TRAIN patches -> thresholds for the quality check (all from clean data)."""
+    x = np.nan_to_num(np.asarray(clean, np.float32))
+    bmean = x.mean(axis=1).ravel()                                      # per pixel, mean over bands
+    bsd = x.std(axis=1).ravel()                                         # per pixel, spread over bands
+    col_sd = x.std(axis=2).mean(axis=1).ravel()                         # per patch and column, mean over bands
+    return {"white_sd": float(np.percentile(bsd, 2.5)), "white_mean": float(np.percentile(bmean, 75)),
+            "hi": float(np.percentile(bmean, 97.5)), "lo": float(np.percentile(bmean, 2.5)),
+            "flat_col_sd": float(0.5 * np.percentile(col_sd, 1)),
+            "hf_median": float(np.median([_hf(p) for p in x])), "n_patches": int(len(x))}
+
+
+def quality_features(x: np.ndarray, ref: dict) -> np.ndarray:
+    """x: optical patch [C, H, W] (standardised) -> 5 numbers in [0, 1]:
+    white_cover   pixels that look the same in every band and are brighter than most ground (cloud-like)
+    bright_cover  pixels brighter, averaged over bands, than 97.5 % of clean training pixels
+    dark_cover    pixels darker than 97.5 % of clean training pixels
+    flat_columns  image columns with almost no variation (stuck detector lines)
+    noise         excess pixel-to-pixel noise relative to clean training patches (log scale)"""
+    x = np.nan_to_num(np.asarray(x, np.float32))
+    bmean, bsd = x.mean(axis=0), x.std(axis=0)
+    white = float(((bsd < ref["white_sd"]) & (bmean > ref["white_mean"])).mean())
+    bright = float((bmean > ref["hi"]).mean())
+    dark = float((bmean < ref["lo"]).mean())
+    flat = float((x.std(axis=1).mean(axis=0) < ref["flat_col_sd"]).mean())
+    noise = float(np.clip(np.log(max(_hf(x), 1e-6) / ref["hf_median"]) / 3.0, 0.0, 1.0))
+    return np.array([white, bright, dark, flat, noise], np.float32)
+
+
+def quality_reference(s2: np.ndarray, passes, path) -> dict:
+    """Fit once on the clean TRAIN patches used by the passes (no damage simulated), cache as JSON."""
+    import json
+    from pathlib import Path
+    path = Path(path)
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    ids = np.unique(passes.patch_id.values[(passes.split.values == "train") & (passes.opt_degrade.values == "none")])
+    ids = np.random.default_rng(0).choice(ids, size=min(400, len(ids)), replace=False)
+    ref = fit_quality_reference(s2[np.sort(ids)].astype(np.float32))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(ref, indent=1), encoding="utf-8")
+    return ref
+
+
 # Evaluation scenarios used by m4_experiments.py (Milestone 10)
 SCENARIOS = {
     "all_present": {"masks": (1, 1, 1)},

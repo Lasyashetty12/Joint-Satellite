@@ -5,6 +5,7 @@ Run from the repository root, with the virtual environment active:
     python members/member4/m4_run_all.py                     # everything, real Sen1Floods11 (downloads ~1.75 GB once)
     python members/member4/m4_run_all.py --from eo_patches   # resume from a stage
     python members/member4/m4_run_all.py --only fusion,report
+    python members/member4/m4_run_all.py --only archive_v1,fusion,fusion_plots,report    # version 2 fusion
     python members/member4/m4_run_all.py --fast              # fewer epochs/seeds (quick check, ~25 min CPU)
     python members/member4/m4_run_all.py --synthetic-eo      # NO image data available: pipeline check only
 Then:
@@ -48,6 +49,7 @@ def stages(a) -> list[tuple[str, list[str], str]]:
         ("eo_train", [m + "training/m4_train_eo.py"] + eo_epochs, "M6 optical-only / SAR-only / optical+SAR CNN"),
         ("reconstruction", [m + "mlts/m4_channel_reconstruction.py"], "M10 telemetry channel reconstruction"),
         ("passes", [m + "data/m4_build_passes.py"], "M7 virtual passes + payload-fault coupling"),
+        ("archive_v1", [m + "evaluation/m4_archive_v1.py"], "keep version 1 fusion results before version 2"),
         ("fusion", [m + "training/m4_train_fusion.py"] + fu, "M8-M11 fusion, missing inputs, ablations, seeds"),
         ("fusion_plots", [m + "explainability/m4_plot_fusion.py"], "M11 figures"),
         ("report", [m + "evaluation/m4_final_report.py"], "M14 final conclusions from measured results"),

@@ -39,6 +39,39 @@ def test_no_degradation_is_identity():
     assert np.array_equal(MM.degrade_optical(x, "none", 0.9, np.random.default_rng(0)), x)
 
 
+def _quality_setup():
+    rng = np.random.default_rng(5)
+    from scipy.ndimage import gaussian_filter
+    clean = np.stack([gaussian_filter(rng.normal(size=(6, 64, 64)), sigma=(0, 2, 2)) * 3 + rng.normal(0, .3, (6, 64, 64))
+                      for _ in range(30)]).astype(np.float32)
+    return clean, MM.fit_quality_reference(clean)
+
+
+def test_quality_check_is_quiet_on_clean_images():
+    clean, ref = _quality_setup()
+    q = np.stack([MM.quality_features(x, ref) for x in clean])
+    assert q.shape == (30, MM.NQ) and ((q >= 0) & (q <= 1)).all()
+    assert q[:, 0].mean() < 0.05 and q[:, 3].max() == 0          # little white cover, no flat columns
+
+
+def test_quality_check_tracks_cloud_cover_and_stripes():
+    clean, ref = _quality_setup()
+    x = clean[0]
+    white = [MM.quality_features(MM.degrade_optical(x, "cloud", s, np.random.default_rng(1)), ref)[0] for s in (.25, .5, 1.)]
+    assert white[0] < white[1] < white[2] and white[2] > 0.6
+    assert MM.quality_features(MM.degrade_optical(x, "stripes", .5, np.random.default_rng(1)), ref)[3] > 0.1
+
+
+def test_gate_reads_quality_only_when_optical_present():
+    tel, opt, sar = _batch(3)
+    net = FusionNet("gated").eval()
+    o2 = opt.clone(); o2[:, -MM.NQ:] += 5.0
+    m = torch.tensor([[1, 0, 1]] * 3, dtype=torch.float32)
+    assert torch.allclose(net(tel, opt, sar, m)["alpha_eo"], net(tel, o2, sar, m)["alpha_eo"])
+    m1 = torch.ones(3, 3)
+    assert not torch.allclose(net(tel, opt, sar, m1)["alpha_eo"], net(tel, o2, sar, m1)["alpha_eo"])
+
+
 def test_masks_never_all_missing():
     m = MM.sample_masks(5000, {"tel": 0.6, "opt": 0.6, "sar": 0.6}, np.random.default_rng(3))
     assert ((m["tel"] + m["opt"] + m["sar"]) >= 1).all()
@@ -90,11 +123,11 @@ def test_eocnn_shapes(in_ch):
 
 def _batch(n=5):
     g = torch.Generator().manual_seed(0)
-    return torch.randn(n, 120, 24, generator=g), torch.randn(n, 512, generator=g), torch.randn(n, 512, generator=g)
+    return torch.randn(n, 120, 24, generator=g), torch.randn(n, 512 + MM.NQ, generator=g), torch.randn(n, 512, generator=g)
 
 
 @pytest.mark.parametrize("name", ["tel_only", "opt_only", "sar_only", "early_fusion", "equal_weights", "gated_fusion",
-                                  "gated_zero_fill", "gated_no_tel_in_gate"])
+                                  "gated_no_quality", "gated_zero_fill", "gated_no_tel_in_gate"])
 def test_fusion_output_shapes(name):
     tel, opt, sar = _batch()
     out = build(name).eval()(tel, opt, sar, torch.ones(5, 3))
@@ -161,11 +194,46 @@ def test_report_helpers():
     assert "| x | 0.123 |" in t and FR.word(None) == "**Not evaluated**"
 
 
+def test_paired_bootstrap_detects_a_clear_difference_and_a_tie():
+    rng = np.random.default_rng(0)
+    n = 300
+    y = (rng.random(n) < 0.4).astype(int)
+    good = np.clip(y * 0.8 + rng.normal(0.1, 0.1, n), 0, 1)                  # near-perfect model
+    bad = rng.random(n)                                                     # random model
+    rows = []
+    for name, p in (("gated_fusion", good), ("early_fusion", bad), ("late_fusion", good.copy())):
+        rows.append(pd.DataFrame({"model": name, "seed": 42, "scenario": "all_present", "pass_id": np.arange(n),
+                                  "y_eo": y, "y_health": y, "p_eo": p, "p_health": p, "thr_eo": 0.5, "thr_health": 0.5}))
+    sp = pd.concat(rows)
+    d, lo, hi = FR.paired_bootstrap(sp, "gated_fusion", "early_fusion", "eo", ["all_present"], B=300)
+    assert lo > 0 and d > 0.3                                               # clearly better
+    d, lo, hi = FR.paired_bootstrap(sp, "gated_fusion", "late_fusion", "eo", ["all_present"], B=300)
+    assert d == 0 and lo <= 0 <= hi                                         # identical -> no difference
+
+
+def test_all_models_table_averages_per_seed_then_over_seeds():
+    fr = pd.DataFrame([{"model": "gated_fusion", "task": t, "scenario": sc, "seed": sd, "F1": f}
+                       for t in ("eo", "health") for sc, sd, f in (("all_present", 1, .8), ("all_present", 2, .6),
+                                                                  ("missing_sar", 1, .5), ("only_sar", 1, .7))])
+    t = FR.all_models_table(fr, plain=True)
+    assert t.loc[0, "flood F1, all inputs"] == "0.700 ± 0.141"
+    assert t.loc[0, "flood F1, inputs missing (5)"].startswith("0.600")
+
+
+def test_rq3_sentence_follows_the_numbers():
+    s = {f"recon_health_F1_k{k}_{f}": v for k, f, v in ((1, "zero", .7), (1, "recon", .8), (2, "zero", .7),
+                                                          (2, "recon", .75), (4, "zero", .6), (4, "recon", .65))}
+    assert "at least as good" in FR.rq3_sentence(s)
+    s["recon_health_F1_k4_recon"] = .5
+    assert "worse than zero-filling with 4" in FR.rq3_sentence(s)
+
+
 def test_run_all_stage_names():
     import m4_run_all as RA
     a = type("A", (), {"fast": False, "synthetic_eo": True})()
     names = [s[0] for s in RA.stages(a)]
     assert len(names) == len(set(names)) and names[0] == "generator" and names[-1] == "tests"
+    assert names.index("archive_v1") == names.index("fusion") - 1
     assert "--synthetic" in dict((s[0], s[1]) for s in RA.stages(a))["eo_patches"]
 
 
@@ -201,3 +269,18 @@ def test_all_text_io_is_explicit_utf8():
             if "encoding=" not in src[m.start():j]:
                 bad.append(f"{p.name}:{src[:m.start()].count(chr(10)) + 1}")
     assert not bad, bad
+
+
+def test_archive_keeps_v1_once_and_never_overwrites(tmp_path, monkeypatch):
+    import m4_archive_v1 as AV
+    res, rep, ck = tmp_path / "results", tmp_path / "reports", tmp_path / "checkpoints"
+    for d in (res, rep, ck):
+        d.mkdir()
+    monkeypatch.setattr(AV, "RESULTS", res); monkeypatch.setattr(AV, "REPORTS", rep)
+    monkeypatch.setattr(AV, "CKPT", ck); monkeypatch.setattr(AV, "ARCHIVE", res / "v1")
+    pd.DataFrame({"model": ["gated_fusion"], "F1": [0.8]}).to_csv(res / "fusion_results.csv", index=False)
+    (rep / "FINAL_CONCLUSIONS.md").write_text("v1 report", encoding="utf-8")
+    assert "archived" in AV.archive() and (res / "v1" / "FINAL_CONCLUSIONS_v1.md").exists()
+    pd.DataFrame({"model": ["gated_fusion"], "F1": [0.9], "protocol": ["v2"]}).to_csv(res / "fusion_results.csv", index=False)
+    assert "already exists" in AV.archive()
+    assert pd.read_csv(res / "v1" / "fusion_results.csv").F1.iloc[0] == 0.8      # version 1 untouched

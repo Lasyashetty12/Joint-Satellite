@@ -44,7 +44,7 @@ NICE = {"tel_only": "telemetry only", "opt_only": "optical only", "sar_only": "S
         "late_fusion": "late fusion", "equal_weights": "equal weights", "gated_fusion": "gated fusion (ours)",
         "gated_zero_fill": "− missing token", "gated_no_tel_in_gate": "− telemetry in gate",
         "gated_no_dropout": "− modality dropout", "gated_no_residuals": "− forecast residuals",
-        "gated_no_multitask": "− multi-task loss"}
+        "gated_no_multitask": "− multi-task loss", "gated_no_quality": "− quality check in gate"}
 SCEN_LABEL = {"all_present": "all inputs", "missing_optical": "− optical", "missing_sar": "− SAR",
               "missing_telemetry": "− telemetry", "only_optical": "optical only", "only_sar": "SAR only",
               "only_telemetry": "telemetry only", "cloud_25": "+25% cloud", "cloud_50": "+50% cloud",
@@ -336,7 +336,9 @@ def page_live():
 def page_accuracy():
     st.title("Model accuracy: every number here was measured")
     tabs = st.tabs(["Forecasting, incl. GRU and LSTM", "Health anomaly detection", "Earth observation", "Fusion and robustness",
-                    "Channel reconstruction"])
+                    "Channel reconstruction", "All models compared"])
+    with tabs[5]:
+        page_compare()
     with tabs[0]:
         fr = RES["forecast"]
         if fr is None:
@@ -467,7 +469,7 @@ def page_accuracy():
                 fig.update_layout(barmode="stack", height=340, yaxis_range=[0, 1.02], yaxis_title="mean trust weight",
                                   title="RQ4: trust weights of the proposed model by situation", **{k: v for k, v in LAYOUT.items() if k != 'hovermode'})
                 T.chart(fig)
-            ab = [m for m in ["gated_fusion", "gated_zero_fill", "gated_no_tel_in_gate", "gated_no_dropout", "gated_no_residuals", "gated_no_multitask"] if m in set(fu.model)]
+            ab = [m for m in ["gated_fusion", "gated_no_quality", "gated_zero_fill", "gated_no_tel_in_gate", "gated_no_dropout", "gated_no_residuals", "gated_no_multitask"] if m in set(fu.model)]
             miss = ["missing_optical", "missing_sar", "missing_telemetry", "only_optical", "only_sar"]
             tbl = pd.DataFrame([{"variant": NICE[m],
                                  "F1 all inputs": fu[(fu.model == m) & (fu.task == task) & (fu.scenario == "all_present")].F1.mean(),
@@ -494,6 +496,56 @@ def page_accuracy():
             fig.add_hline(y=hg[hg.scenario == "all_present"].F1.mean(), line=dict(color=GREY, dash="dot"), annotation_text="no channel lost")
             fig.update_layout(height=320, xaxis_title="telemetry channels lost per pass", yaxis_title="health F1 (gated fusion, test)", **LAYOUT)
             T.chart(fig)
+
+
+@st.cache_data(show_spinner="Resampling the test passes…")
+def boot_table(_stamp):
+    import m4_final_report as FR
+    return FR.bootstrap_table()
+
+
+def page_compare():
+    import json
+    import m4_final_report as FR
+    synth_banner()
+    fu = RES["fusion"]
+    if fu is None:
+        st.info("Run training/m4_train_fusion.py"); return
+    st.markdown("Every model on every input condition, on the **test** passes. Each number is F1 as mean ± spread "
+                "over the training seeds; a dash means the model has no input in that condition.")
+    st.dataframe(FR.all_models_table(fu, plain=True).set_index("model"), width="stretch")
+    st.subheader("Is the proposed model really different from simple fusion?")
+    f = C.RESULTS / "m4_fusion_scenario_predictions.csv.gz"
+    bt = boot_table(f.stat().st_mtime if f.exists() else 0)
+    if isinstance(bt, str):
+        st.info(bt)
+    else:
+        st.markdown("<p class='m4-note'>Paired bootstrap: the test passes are resampled 2000 times and both models are "
+                    "scored on the same resampled passes. If the 95 % interval contains 0, the two cannot be told apart "
+                    "on this test set.</p>", unsafe_allow_html=True)
+        fig = go.Figure()
+        lab = [f"{r.task}, {r.condition}, vs {r['gated minus']}" for _, r in bt.iterrows()]
+        lo = bt["95 % CI"].str.extract(r"\[([-+0-9.]+), ([-+0-9.]+)\]").astype(float)
+        fig.add_scatter(x=bt["difference in F1"], y=lab, mode="markers", marker=dict(size=10, color=T.INK),
+                        error_x=dict(type="data", symmetric=False, array=lo[1] - bt["difference in F1"],
+                                     arrayminus=bt["difference in F1"] - lo[0], color=T.SLATE, thickness=2),
+                        hovertemplate="%{y}<br>difference %{x:+.3f}<extra></extra>", showlegend=False)
+        fig.add_vline(x=0, line=dict(color=T.BAD, dash="dot"))
+        fig.update_layout(height=60 + 34 * len(bt), xaxis_title="gated minus simple fusion, F1 (positive = gated better)",
+                          margin=dict(l=10, r=10, t=20, b=10), yaxis=dict(autorange="reversed"))
+        T.chart(fig)
+        st.dataframe(bt.set_index(["task", "condition", "gated minus"]), width="stretch")
+    v1f = C.RESULTS / "v1" / "m4_final_summary.json"
+    if v1f.exists():
+        st.subheader("Version 1 and version 2, judged by the same rules")
+        v1, v2 = json.loads(v1f.read_text(encoding="utf-8")), RES["summary"]
+        w = {True: "Supported", False: "Not supported", "partial": "Partly supported", None: "Withheld"}
+        st.dataframe(pd.DataFrame([{"question": n, "version 1": w.get(v1.get(k), "–"), "version 2": w.get(v2.get(k), "–")}
+                                   for k, n in (("primary", "Primary"), ("RQ2", "RQ2"), ("RQ3", "RQ3"), ("RQ4", "RQ4"))])
+                     .set_index("question"), width="stretch")
+        st.markdown("<p class='m4-note'>Version 2 changes training and the model, not the rules: every model practises "
+                    "with lost sensors and extra cloud, rebuilt channels stay flagged as not measured, and the gate reads "
+                    "an image-quality check. Version 1 is archived in results/v1.</p>", unsafe_allow_html=True)
 
 
 # ================================================================== 4. conclusions

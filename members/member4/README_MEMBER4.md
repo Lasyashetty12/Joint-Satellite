@@ -54,6 +54,24 @@ streamlit run members/member4/dashboard/m4_app.py               # the dashboard
 | report | `evaluation/m4_final_report.py` → `reports/FINAL_CONCLUSIONS.md` | M14 |
 | dashboard | `dashboard/m4_app.py` (+ `m4_dashboard_data.py`) | M13 |
 
+## Version 2 of the fusion experiments
+
+Version 1 (3 seeds, real Sen1Floods11) gave Primary *not supported*, RQ3 *partly supported*, RQ4 *not supported*.
+Version 2 fixes three design gaps found in that run. **The decision rules are unchanged**, version 1 is archived
+in `results/v1/`, and the report and dashboard show both versions side by side.
+
+| Gap in version 1 | Change in version 2 | Where |
+|---|---|---|
+| Models never saw a lost sensor during training; a rebuilt channel was passed in as a real measurement | Every model practises with 1-4 lost channels (zero-filled or rebuilt, p = 0.3); lost channels stay flagged "not measured" | `training/m4_train_fusion.py` (`telemetry_aug`, `_window`) |
+| The gate had no direct sign of a cloudy or damaged image; only 15 % of training passes had cloud | Five image-quality numbers (white/bright/dark cover, flat columns, noise) fitted on clean training patches; every model receives them, the gate also reads them directly; cloud practice p = 0.3 | `data/m4_missing_modality.py` (`quality_features`), `models/m4_fusion.py` |
+| Comparison of models was not statistically checked; forecasting reported on validation | Paired bootstrap 95 % intervals (gated − early, gated − late); one table of every model on every condition; forecasters reported on the test split | `evaluation/m4_final_report.py`, dashboard tab "All models compared" |
+
+New ablation: `gated_no_quality` (the gate does not read the quality numbers directly).
+
+Run (repository root, venv active; about as long as the 3-seed run, roughly 2 h on a laptop CPU):
+
+    python members/member4/m4_run_all.py --only archive_v1,fusion,fusion_plots,report
+
 ## Dashboard (handbook section 25 demo)
 
 `streamlit run members/member4/dashboard/m4_app.py`

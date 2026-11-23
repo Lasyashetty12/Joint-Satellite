@@ -7,10 +7,19 @@ Models: tel_only, opt_only, sar_only (unimodal) | early_fusion, late_fusion, equ
 Training: train passes; modality dropout p = 0.2 per input (never all three) except unimodal models and
           gated_no_dropout; class-balanced BCE for both tasks; best epoch by validation AUPRC (mean of
           both tasks); decision thresholds = best validation F1 per task. Seeds 42, 43, 44.
+Version 2 training protocol (applied to EVERY model, so the comparison stays fair):
+          * telemetry sensor-loss practice: with p = 0.3 a training window loses k = 1-4 random channels,
+            filled with zeros or with the cross-channel reconstruction (50/50); lost channels are always
+            flagged "not measured" and their residuals set to 0 (a rebuilt value is never passed off as real)
+          * cloud practice: with p = 0.3 the optical input is replaced by the same patch under 25-100 % cloud
+          * every optical input carries the 5 image-quality numbers (m4_missing_modality.quality_features)
+          New ablation: gated_no_quality (the gate does not read the quality numbers directly).
+          Version 1 results are archived by evaluation/m4_archive_v1.py before a version 2 run.
 Evaluation (TEST passes, once per scenario) - m4_missing_modality.SCENARIOS plus telemetry channel loss:
           tel_drop{k}_zero   k random channels lost, zero-filled + flagged missing
           tel_drop{k}_recon  same channels replaced by cross-channel reconstruction (RQ3); every lost
                              channel is hidden from the reconstruction models (no leak between lost channels)
+                             and stays flagged "not measured" (version 2)
 Metrics per task (health = pass contains a satellite fault; eo = patch is flooded):
           F1, precision, recall, AUPRC, AUROC; flood F1 on payload-fault (coupled) passes and on cloudy passes;
           mean alpha weights per subset (RQ4).
@@ -19,6 +28,8 @@ Outputs:
     results/fusion_results.csv        member, model, seed, scenario, task, F1, precision, recall, AUPRC, AUROC, ...
     results/m4_alpha_summary.csv      model, seed, scenario, subset, gate, alpha_tel, alpha_opt, alpha_sar
     results/m4_fusion_test_predictions.csv   per test pass (seed 42, all_present) for the dashboard
+    results/m4_fusion_scenario_predictions.csv.gz   per test pass, every scenario and seed, for the
+                                     comparison models (paired bootstrap confidence intervals)
     checkpoints/m4_fusion_<model>_s<seed>.pt   (git-ignored)
 
 Run from the repository root (after Milestones 5-7 and m4_channel_reconstruction.py):
@@ -47,13 +58,17 @@ import m4_ts_common as C  # noqa: E402
 PASS_DIR = C.GEN_DIR / "passes"
 CKPT = MEMBER_DIR / "checkpoints"
 MODELS = ["tel_only", "opt_only", "sar_only", "early_fusion", "equal_weights", "gated_fusion",
-          "gated_zero_fill", "gated_no_tel_in_gate", "gated_no_dropout", "gated_no_residuals",
+          "gated_no_quality", "gated_zero_fill", "gated_no_tel_in_gate", "gated_no_dropout", "gated_no_residuals",
           "gated_no_multitask"]
 UNIMODAL = ("tel_only", "opt_only", "sar_only")
 SEEDS = [42, 43, 44]
 P_DROP = {"tel": 0.2, "opt": 0.2, "sar": 0.2}
 EPOCHS = 40
 TEL_DROP_K = (1, 2, 4)
+PROTOCOL = "v2"
+P_CH_AUG, P_CLOUD_AUG = 0.3, 0.3          # version 2 training practice (all models)
+AUG_CLOUD = (0.25, 0.5, 0.75, 1.0)
+KEEP_PRED = ("gated_fusion", "early_fusion", "equal_weights", "late_fusion", "gated_no_quality")
 
 
 # ------------------------------------------------------------------ inputs
@@ -73,14 +88,16 @@ class Inputs:
         self.sar_emb = sar["emb"].astype(np.float32)[self.passes.patch_id.values]
         self.sar_prob = sar["prob"][self.passes.patch_id.values]
         self._opt_cache: dict = {}
+        self.qref = MM.quality_reference(self.eo["s2"], self.passes, EP.OUT_DIR / "m4_quality_ref.json")
         rec = C.GEN_DIR / "m4_reconstruction.npz"
         self.recon = np.load(rec)["recon"] if rec.exists() else None
         self.split = {s: np.where(self.passes.split.values == s)[0] for s in ("train", "val", "test")}
 
-    def optical(self, idx: np.ndarray, extra_cloud: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
-        """Optical embeddings for passes idx, after their own degradation (+ an extra cloud layer)."""
+    def optical(self, idx: np.ndarray, extra_cloud: float = 0.0, seed_offset: int = 1) -> tuple[np.ndarray, np.ndarray]:
+        """Optical inputs for passes idx, after their own degradation (+ an extra cloud layer):
+        [512-d embedding | 5 quality numbers] and the optical-only flood probability."""
         from m4_eo_cnn import encode
-        key = (extra_cloud, tuple(idx[[0, -1]]), len(idx))
+        key = (extra_cloud, seed_offset, tuple(idx[[0, -1]]), len(idx))
         if key not in self._opt_cache:
             imgs = np.empty((len(idx),) + self.eo["s2"].shape[1:], np.float32)
             for n, i in enumerate(idx):
@@ -88,28 +105,61 @@ class Inputs:
                 rng = np.random.default_rng(int(r.degrade_seed))
                 x = MM.degrade_optical(self.eo["s2"][int(r.patch_id)], r.opt_degrade, float(r.opt_severity), rng)
                 if extra_cloud > 0:
-                    x = MM.degrade_optical(x, "cloud", extra_cloud, np.random.default_rng(int(r.degrade_seed) + 1))
+                    x = MM.degrade_optical(x, "cloud", extra_cloud, np.random.default_rng(int(r.degrade_seed) + seed_offset))
                 imgs[n] = x
-            self._opt_cache[key] = encode(self.opt_enc, imgs)
+            emb, prob = encode(self.opt_enc, imgs)
+            q = np.stack([MM.quality_features(im, self.qref) for im in imgs])
+            self._opt_cache[key] = (np.concatenate([emb.astype(np.float32), q], axis=1), prob)
         return self._opt_cache[key]
+
+    def optical_aug(self, idx: np.ndarray) -> np.ndarray:
+        """[len(AUG_CLOUD), n, 512+NQ] optical inputs of the same passes under extra cloud (training practice)."""
+        return np.stack([self.optical(idx, c, seed_offset=101 + j)[0] for j, c in enumerate(AUG_CLOUD)])
+
+    def telemetry_aug(self, idx: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Sensor-loss practice windows for passes idx: (zero-filled, reconstructed), same lost channels.
+        Cached on disk because the reconstruction takes a few minutes."""
+        f = PASS_DIR / "m4_tel_aug_v2.npz"
+        ids = self.passes.pass_id.values[idx]
+        if f.exists():
+            z = np.load(f)
+            if np.array_equal(z["pass_id"], ids):
+                return z["Xz"], z["Xr"]
+        rng = np.random.default_rng(7)
+        Xz = np.empty((len(idx), self.tel.shape[1], 24), np.float32); Xr = np.empty_like(Xz)
+        t0 = time.time()
+        for n, i in enumerate(idx):
+            ch = rng.choice(self.tel.shape[2], size=int(rng.integers(1, 5)), replace=False)
+            Xz[n] = self._window(i, ch, "zero"); Xr[n] = self._window(i, ch, "recon")
+            if n and n % 400 == 0:
+                print(f"  sensor-loss practice windows {n}/{len(idx)} ({time.time() - t0:.0f}s)")
+        np.savez_compressed(f, pass_id=ids, Xz=Xz, Xr=Xr)
+        return Xz, Xr
+
+    def _window(self, i: int, ch: np.ndarray, fill: str) -> np.ndarray:
+        """One pass window [T, 24] with channels ch lost: values 0 (zero) or rebuilt (recon), flagged missing."""
+        tel = self.tel[i].copy(); res = self.res[i].copy(); nan = self.tel_nan[i].copy()
+        res[:, ch] = 0.0; nan[:, ch] = True
+        if fill == "recon":
+            import m4_channel_reconstruction as RC
+            mu, sd = self._std()
+            s = int(self.passes.start_idx.iloc[i])
+            rec = RC.reconstruct(self._df(), np.arange(s, s + tel.shape[0]), [C.CHANNELS[c] for c in ch])
+            tel[:, ch] = (rec - mu[ch]) / sd[ch]
+        else:
+            tel[:, ch] = 0.0
+        return np.concatenate([np.nan_to_num(tel, nan=0.0), np.nan_to_num(res, nan=0.0) / 5.0,
+                               nan.astype(np.float32)], axis=1).astype(np.float32)
 
     def telemetry(self, idx: np.ndarray, drop_k: int = 0, fill: str = "zero", seed: int = 0) -> np.ndarray:
         tel = self.tel[idx].copy(); res = self.res[idx].copy(); nan = self.tel_nan[idx].copy()
         if drop_k:
             rng = np.random.default_rng(seed)
-            mu, sd = self._std()
+            out = np.empty((len(idx), tel.shape[1], 24), np.float32)
             for n, i in enumerate(idx):
                 ch = rng.choice(tel.shape[2], size=drop_k, replace=False)
-                res[n][:, ch] = 0.0
-                if fill == "recon":
-                    import m4_channel_reconstruction as RC
-                    s = int(self.passes.start_idx.iloc[i])
-                    lost = [C.CHANNELS[c] for c in ch]
-                    rec = RC.reconstruct(self._df(), np.arange(s, s + tel.shape[1]), lost)
-                    tel[n][:, ch] = (rec - mu[ch]) / sd[ch]
-                    nan[n][:, ch] = False
-                else:
-                    tel[n][:, ch] = np.nan; nan[n][:, ch] = True
+                out[n] = self._window(i, ch, fill)
+            return out
         x = np.concatenate([np.nan_to_num(tel, nan=0.0), np.nan_to_num(res, nan=0.0) / 5.0, nan.astype(np.float32)], axis=2)
         return x.astype(np.float32)
 
@@ -179,8 +229,10 @@ def train_model(name: str, I: Inputs, seed: int, epochs: int = EPOCHS, verbose: 
     tr, va = I.split["train"], I.split["val"]
     Xt, (Ot, _), St = I.telemetry(tr), I.optical(tr), I.sar_emb[tr]
     Xv, (Ov, _), Sv = I.telemetry(va), I.optical(va), I.sar_emb[va]
+    Xz, Xr = I.telemetry_aug(tr)                       # version 2 practice data (same for every model)
+    Oa = I.optical_aug(tr)
     if name == "gated_no_residuals":
-        Xt, Xv = no_res(Xt), no_res(Xv)
+        Xt, Xv, Xz, Xr = no_res(Xt), no_res(Xv), no_res(Xz), no_res(Xr)
     yh, ye = I.labels(tr); vh, ve = I.labels(va)
     pw_h = torch.tensor((len(yh) - yh.sum()) / max(1, yh.sum())); pw_e = torch.tensor((len(ye) - ye.sum()) / max(1, ye.sum()))
     lf_h = torch.nn.BCEWithLogitsLoss(pos_weight=pw_h); lf_e = torch.nn.BCEWithLogitsLoss(pos_weight=pw_e)
@@ -197,7 +249,14 @@ def train_model(name: str, I: Inputs, seed: int, epochs: int = EPOCHS, verbose: 
                 m = np.stack([mk["tel"], mk["opt"], mk["sar"]], 1).astype(np.float32)
             else:
                 m = masks_array(len(ib), (1, 1, 1))
-            o = model(torch.from_numpy(Xt[ib]), torch.from_numpy(Ot[ib]), torch.from_numpy(St[ib]), torch.from_numpy(m))
+            xb, ob = Xt[ib].copy(), Ot[ib].copy()
+            lose = rng.random(len(ib)) < P_CH_AUG                      # sensor-loss practice
+            rec = rng.random(len(ib)) < 0.5
+            xb[lose & ~rec], xb[lose & rec] = Xz[ib[lose & ~rec]], Xr[ib[lose & rec]]
+            cl = np.where(rng.random(len(ib)) < P_CLOUD_AUG)[0]          # cloud practice
+            if len(cl):
+                ob[cl] = Oa[rng.integers(0, len(AUG_CLOUD), len(cl)), ib[cl]]
+            o = model(torch.from_numpy(xb), torch.from_numpy(ob), torch.from_numpy(St[ib]), torch.from_numpy(m))
             loss = task_w[0] * lf_h(o["health"], torch.from_numpy(yh[ib])) + task_w[1] * lf_e(o["eo"], torch.from_numpy(ye[ib]))
             opt.zero_grad(); loss.backward(); opt.step()
         pv = predict(model, Xv, Ov, Sv, mv)
@@ -210,7 +269,7 @@ def train_model(name: str, I: Inputs, seed: int, epochs: int = EPOCHS, verbose: 
     pv = predict(model, Xv, Ov, Sv, mv)
     thr = {"health": best_thr(vh, pv["health"]), "eo": best_thr(ve, pv["eo"])}
     CKPT.mkdir(parents=True, exist_ok=True)
-    torch.save({"state": best_state, "name": name, "seed": seed, "thr": thr, "dataset": I.dataset},
+    torch.save({"state": best_state, "name": name, "seed": seed, "thr": thr, "dataset": I.dataset, "protocol": PROTOCOL},
                CKPT / f"m4_fusion_{tag or name}_s{seed}.pt")
     return model, thr, hist
 
@@ -259,7 +318,7 @@ def evaluate(name, preds, thr, I, scen, seed) -> tuple[list, list]:
     rows = []
     for task, y in (("health", yh), ("eo", ye)):
         r = {"member": "member4", "model": name, "seed": seed, "scenario": scen, "task": task,
-             "eo_dataset": I.dataset, **task_metrics(y, preds[task], thr[task]), "threshold": thr[task]}
+             "eo_dataset": I.dataset, "protocol": PROTOCOL, **task_metrics(y, preds[task], thr[task]), "threshold": thr[task]}
         if task == "eo":
             r["F1_coupled"] = task_metrics(y[coupled], preds["eo"][coupled], thr["eo"])["F1"] if coupled.any() else np.nan
             r["F1_cloudy"] = task_metrics(y[cloudy], preds["eo"][cloudy], thr["eo"])["F1"] if cloudy.any() else np.nan
@@ -293,7 +352,16 @@ def main(argv=None) -> int:
         print("WARNING: EO inputs are the SYNTHETIC stand-in (pipeline check). Fusion numbers are not results.")
     models = [m.strip() for m in args.models.split(",") if m.strip()]
     seeds = [int(s) for s in args.seeds.split(",")]
-    rows, arows, info, preds_keep = [], [], {}, {}
+    rows, arows, info, preds_keep, scen_pred = [], [], {}, {}, []
+    te_ids = I.passes.pass_id.values[I.split["test"]]
+    te_y = I.labels(I.split["test"])
+
+    def keep_scen(name, pr, thr, scen, seed):
+        if name in KEEP_PRED:
+            scen_pred.append(pd.DataFrame({"model": name, "seed": seed, "scenario": scen, "pass_id": te_ids,
+                                           "y_health": te_y[0].astype(int), "y_eo": te_y[1].astype(int),
+                                           "p_health": np.round(pr["health"], 4), "p_eo": np.round(pr["eo"], 4),
+                                           "thr_health": thr["health"], "thr_eo": thr["eo"]}))
     for seed in seeds:
         uni_preds: dict = {}
         for name in models:
@@ -309,6 +377,7 @@ def main(argv=None) -> int:
                 else:
                     r, a = evaluate(name, pr, thr, I, scen, seed)
                 rows += r; arows += a
+                keep_scen(name, pr, thr, scen, seed)
                 if name in UNIMODAL:
                     uni_preds.setdefault(scen, {})[name] = (pr, M)
                 if seed == seeds[0] and scen == "all_present":
@@ -330,6 +399,7 @@ def main(argv=None) -> int:
                 w = M / M.sum(1, keepdims=True)
                 pr = {t: sum(w[:, k] * d[u][0][t] for k, u in enumerate(UNIMODAL)) for t in ("health", "eo")}
                 r, _ = evaluate("late_fusion", pr, thr, I, scen, seed); rows += r
+                keep_scen("late_fusion", pr, thr, scen, seed)
                 if seed == seeds[0] and scen == "all_present":
                     preds_keep["late_fusion"] = pr
             print(f"seed {seed}  late_fusion            done")
@@ -343,12 +413,17 @@ def main(argv=None) -> int:
             old = old[~(old.model.isin(rerun) & old.seed.isin(seeds))]
             if "eo_dataset" in old.columns and "eo_dataset" in new.columns:
                 old = old[old.eo_dataset == I.dataset]           # never mix synthetic and real EO rows
+            if "protocol" in new.columns:                         # never mix version 1 and version 2 rows
+                old = old[old["protocol"] == PROTOCOL] if "protocol" in old.columns else old.iloc[0:0]
             new = pd.concat([old, new], ignore_index=True)
         new.round(4).to_csv(path, index=False)
         return new
 
     res = merge(C.RESULTS / "fusion_results.csv", pd.DataFrame(rows))
-    amerge = pd.DataFrame(arows); amerge["eo_dataset"] = I.dataset
+    if scen_pred:
+        sp = pd.concat(scen_pred, ignore_index=True); sp["eo_dataset"] = I.dataset; sp["protocol"] = PROTOCOL
+        merge(C.RESULTS / "m4_fusion_scenario_predictions.csv.gz", sp)
+    amerge = pd.DataFrame(arows); amerge["eo_dataset"] = I.dataset; amerge["protocol"] = PROTOCOL
     merge(C.RESULTS / "m4_alpha_summary.csv", amerge)
     ip = C.RESULTS / "m4_fusion_train_info.json"
     old_info = json.loads(ip.read_text(encoding="utf-8")) if ip.exists() else {}

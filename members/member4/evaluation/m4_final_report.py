@@ -18,6 +18,15 @@ Decision rules (stated in the report, applied mechanically):
        keeps >= 90 % of its all-inputs flood F1 and is not worse than early/late fusion by > 1 std.
 Any conclusion that depends on images is WITHHELD when the EO inputs are the synthetic stand-in.
 
+Fair comparison (version 2 report):
+  * forecasters are SELECTED on validation and REPORTED on the test split
+  * one table compares every fusion model on every input condition (mean ± std over seeds)
+  * paired bootstrap (2000 resamples of the test passes, same passes for both models) gives a 95 %
+    confidence interval for gated − early and gated − late fusion; descriptive only, the decision
+    rules above are unchanged
+  * if results/v1/ exists (evaluation/m4_archive_v1.py), version 1 and version 2 are shown side by
+    side, both judged by the same rules
+
 Run from the repository root:
     python members/member4/evaluation/m4_final_report.py
 """
@@ -42,7 +51,10 @@ NICE = {"tel_only": "telemetry only", "opt_only": "optical only", "sar_only": "S
         "late_fusion": "late fusion", "equal_weights": "equal weights", "gated_fusion": "**gated fusion (ours)**",
         "gated_zero_fill": "− missing token", "gated_no_tel_in_gate": "− telemetry in gate",
         "gated_no_dropout": "− modality dropout", "gated_no_residuals": "− forecast residuals",
-        "gated_no_multitask": "− multi-task loss"}
+        "gated_no_multitask": "− multi-task loss", "gated_no_quality": "− quality check in gate"}
+CLOUD = ["cloud_25", "cloud_50", "cloud_75", "cloud_100"]
+DROPS = [f"tel_drop{k}_{f}" for k in (1, 2, 4) for f in ("zero", "recon")]
+FC_NICE = {"naive": "Naive", "snaive": "Seasonal naive", "arimax": "ARIMAX", "xgboost": "XGBoost", "gru": "GRU", "lstm": "LSTM"}
 
 
 def read(name):
@@ -75,10 +87,24 @@ def forecasting(summary: dict) -> str:
         avg.columns = ["model"] + [f"skill h={c}" for c in avg.columns[1:]]
         parts.append("**Mean skill vs naive (1 − MAE/MAE_naive), validation**\n\n" + md_table(avg))
         best = sk[sk.horizon == 10].groupby("model").skill_vs_naive.mean()
-        summary["forecast_best_model"] = best.idxmax(); summary["forecast_best_skill_h10"] = round(float(best.max()), 3)
+        summary["forecast_best_model"] = best.idxmax(); summary["forecast_best_skill_h10_val"] = round(float(best.max()), 3)
+    # final comparison on the TEST split (models were chosen on validation, never on test)
+    t = fr[fr.split == "test"]
+    if len(t):
+        mae = t.pivot_table(index=["channel", "horizon"], columns="model", values="MAE")
+        sk_t = (1 - mae.div(mae["naive"], axis=0)).groupby(level="horizon").mean()[order]
+        tab = sk_t.T.reset_index(); tab.columns = ["model"] + [f"skill h={h}" for h in sk_t.index]
+        tab["model"] = tab.model.map(FC_NICE)
+        parts.append("**Mean skill vs naive on the TEST split (final comparison; higher is better)**\n\n" + md_table(tab))
+        h10 = sk_t.loc[10] if 10 in sk_t.index else sk_t.iloc[-1]
+        sel = summary.get("forecast_best_model", h10.idxmax())
+        summary["forecast_best_skill_h10"] = round(float(h10[sel]), 3)
+        summary["forecast_test_skill_h10"] = {m: round(float(v), 3) for m, v in h10.items()}
         for m in ("gru", "lstm"):
-            if m in best:
-                summary[f"forecast_skill_h10_{m}"] = round(float(best[m]), 3)
+            if m in h10:
+                summary[f"forecast_skill_h10_{m}"] = round(float(h10[m]), 3)
+        rank = ", ".join(f"{FC_NICE[m]} {v:.3f}" for m, v in h10.sort_values(ascending=False).items())
+        parts.append(f"Ranking at 5 min ahead on test: {rank}. `{sel}` was chosen on validation.")
     return "\n\n".join(parts)
 
 
@@ -159,8 +185,8 @@ def fusion(summary: dict, synthetic: bool) -> tuple[str, dict]:
     summary.update({f"recon_health_F1_k{int(k)}_{f}": round(float(v), 3) for k, z, r in rec.values
                     for f, v in (("zero", z), ("recon", r))})
     parts.append("**Telemetry channels lost (gated fusion, health task)**\n\n" + md_table(rec))
-    ab = [m for m in ("gated_fusion", "gated_zero_fill", "gated_no_tel_in_gate", "gated_no_dropout", "gated_no_residuals",
-                      "gated_no_multitask") if m in set(fr.model)]
+    ab = [m for m in ("gated_fusion", "gated_no_quality", "gated_zero_fill", "gated_no_tel_in_gate", "gated_no_dropout",
+                      "gated_no_residuals", "gated_no_multitask") if m in set(fr.model)]
     abt = pd.DataFrame([{"variant": NICE[m],
                          "flood F1 (all)": fr[(fr.model == m) & (fr.task == "eo") & (fr.scenario == "all_present")].F1.mean(),
                          "flood F1 (missing avg)": fr[(fr.model == m) & (fr.task == "eo") & fr.scenario.isin(MISSING)].F1.mean(),
@@ -168,6 +194,8 @@ def fusion(summary: dict, synthetic: bool) -> tuple[str, dict]:
                          "health F1 (missing avg)": fr[(fr.model == m) & (fr.task == "health") & fr.scenario.isin(MISSING)].F1.mean()}
                         for m in ab])
     parts.append("**Ablations (test, mean over seeds)**\n\n" + md_table(abt))
+    parts.append(all_models(fr))
+    parts.append(bootstrap_section(summary))
     al = read("m4_alpha_summary.csv")
     if al is not None:
         e = al[(al.model == "gated_fusion") & (al.gate == "eo")]
@@ -184,6 +212,129 @@ def fusion(summary: dict, synthetic: bool) -> tuple[str, dict]:
     return "\n\n".join(parts), verdicts
 
 
+def _ms(fr, m, task, scens) -> str:
+    d = fr[(fr.model == m) & (fr.task == task) & fr.scenario.isin(scens)]
+    if not len(d):
+        return "–"
+    per_seed = d.groupby("seed").F1.mean()
+    return f"{per_seed.mean():.3f} ± {np.nan_to_num(per_seed.std()):.3f}"
+
+
+def all_models_table(fr: pd.DataFrame, plain: bool = False) -> pd.DataFrame:
+    """Every fusion model on every input condition, F1 mean ± std over seeds (each seed averaged over the
+    scenarios of the group first). Unimodal models are scored only where their input exists."""
+    order = [m for m in NICE if m in set(fr.model)]
+    groups = {"all inputs": ["all_present"], "inputs missing (5)": MISSING, "cloud 25-100 %": CLOUD,
+              "sensors lost (1-4)": DROPS}
+    rows = []
+    for m in order:
+        r = {"model": NICE[m].replace("**", "") if plain else NICE[m]}
+        for task, tname in (("eo", "flood"), ("health", "health")):
+            for gname, sc in groups.items():
+                r[f"{tname} F1, {gname}"] = _ms(fr, m, task, sc)
+        rows.append(r)
+    return pd.DataFrame(rows)
+
+
+def all_models(fr: pd.DataFrame) -> str:
+    return ("**Every model compared (test, F1 mean ± std over seeds)**\n\n" + md_table(all_models_table(fr))
+            + "\n\n_Each cell averages the scenarios of its group per seed, then over seeds. A dash means the model "
+              "has no input in that condition._")
+
+
+def _f1_boot(y, p, thr, W) -> np.ndarray:
+    pred = p >= thr
+    tp = W @ (pred & (y == 1)).astype(float); fp = W @ (pred & (y == 0)).astype(float)
+    fn = W @ (~pred & (y == 1)).astype(float)
+    den = 2 * tp + fp + fn
+    return np.where(den > 0, 2 * tp / np.where(den > 0, den, 1), 0.0)
+
+
+def paired_bootstrap(sp: pd.DataFrame, a: str, b: str, task: str, scens: list[str], B: int = 2000,
+                     seed: int = 0) -> tuple[float, float, float] | None:
+    """Difference in mean F1 (a - b) over seeds x scenarios, with a 95 % CI from resampling test passes.
+    The same resampled passes are used for both models (paired)."""
+    ids = np.sort(sp.pass_id.unique()); n = len(ids)
+    W = np.random.default_rng(seed).multinomial(n, np.full(n, 1 / n), size=B).astype(float)
+    W = np.vstack([np.ones(n), W])                       # row 0 = the actual test set
+    diffs, cnt = np.zeros(B + 1), 0
+    for (sd, sc), d in sp[sp.scenario.isin(scens)].groupby(["seed", "scenario"]):
+        da, db = d[d.model == a].set_index("pass_id").reindex(ids), d[d.model == b].set_index("pass_id").reindex(ids)
+        if da.p_eo.isna().any() or db.p_eo.isna().any() or da[f"y_{task}"].isna().any():
+            continue                                     # a model or the labels are missing for this run
+        y = da[f"y_{task}"].values.astype(int)
+        diffs += _f1_boot(y, da[f"p_{task}"].values, da[f"thr_{task}"].iloc[0], W) \
+            - _f1_boot(y, db[f"p_{task}"].values, db[f"thr_{task}"].iloc[0], W)
+        cnt += 1
+    if not cnt:
+        return None
+    diffs /= cnt
+    return float(diffs[0]), float(np.percentile(diffs[1:], 2.5)), float(np.percentile(diffs[1:], 97.5))
+
+
+def bootstrap_table(summary: dict | None = None) -> pd.DataFrame | str:
+    """Paired bootstrap table, or a sentence explaining why it is not available."""
+    summary = {} if summary is None else summary
+    f = R / "m4_fusion_scenario_predictions.csv.gz"
+    if not f.exists():
+        return "Paired bootstrap: per-pass predictions not available (run the version 2 fusion training)."
+    sp = pd.read_csv(f)
+    if "y_eo" not in sp.columns:
+        return "Paired bootstrap: the prediction file has no labels; rerun the fusion training."
+    rows = []
+    for task, tname in (("eo", "flood"), ("health", "health")):
+        for gname, sc in (("all inputs", ["all_present"]), ("inputs missing (5)", MISSING), ("cloud 25-100 %", CLOUD)):
+            for other in ("early_fusion", "late_fusion"):
+                r = paired_bootstrap(sp, "gated_fusion", other, task, sc) if other in set(sp.model) else None
+                if r is None:
+                    continue
+                d, lo, hi = r
+                verdict = "gated better" if lo > 0 else ("gated worse" if hi < 0 else "no clear difference")
+                rows.append({"task": tname, "condition": gname, "gated minus": NICE[other], "difference in F1": round(d, 4),
+                             "95 % CI": f"[{lo:+.3f}, {hi:+.3f}]", "reading": verdict})
+                if task == "eo" and gname == "inputs missing (5)":
+                    summary[f"boot_flood_missing_vs_{other}"] = {"diff": round(d, 4), "lo": round(lo, 4), "hi": round(hi, 4)}
+    if not rows:
+        return "Paired bootstrap: no comparable predictions."
+    return pd.DataFrame(rows)
+
+
+def bootstrap_section(summary: dict) -> str:
+    t = bootstrap_table(summary)
+    if isinstance(t, str):
+        return f"_{t}_"
+    return ("**Is gated fusion really different from simple fusion? Paired bootstrap, 2000 resamples of the test "
+            "passes**\n\n" + md_table(t) +
+            "\n\n_If the 95 % interval contains 0, the two models cannot be told apart on this test set. "
+            "Descriptive only: the decision rules are unchanged._")
+
+
+def versions(summary: dict) -> str:
+    v1f = R / "v1" / "m4_final_summary.json"
+    if not v1f.exists():
+        return ""
+    v1 = json.loads(v1f.read_text(encoding="utf-8"))
+    if str(v1.get("eo_dataset")) != str(summary.get("eo_dataset")):
+        return ("## Version 1 and version 2\n\n_The archived version 1 results use a different image dataset "
+                f"(`{v1.get('eo_dataset')}`), so they are not compared here._\n")
+    w = lambda v: {True: "Supported", False: "Not supported", "partial": "Partly supported", None: "Withheld"}.get(v, str(v))  # noqa: E731
+    keys = [("primary", "Primary"), ("RQ2", "RQ2"), ("RQ3", "RQ3"), ("RQ4", "RQ4")]
+    t = pd.DataFrame([{"question": n, "version 1": w(v1.get(k)), "version 2": w(summary.get(k))} for k, n in keys])
+    nums = [("fusion_flood_F1_all", "gated flood F1, all inputs"), ("fusion_flood_F1_missing_avg", "gated flood F1, inputs missing"),
+            ("early_fusion_flood_F1_missing_avg", "early fusion flood F1, inputs missing"),
+            ("late_fusion_flood_F1_missing_avg", "late fusion flood F1, inputs missing"),
+            ("fusion_health_F1_all", "gated health F1, all inputs"),
+            ("recon_health_F1_k4_zero", "health F1, 4 lost, zero-filled"), ("recon_health_F1_k4_recon", "health F1, 4 lost, rebuilt"),
+            ("alpha_opt_clear", "optical trust, clear"), ("alpha_opt_cloudy", "optical trust, cloudy"),
+            ("alpha_opt_100_pct_cloud", "optical trust, 100 % cloud"), ("alpha_opt_payload_fault", "optical trust, payload fault")]
+    n = pd.DataFrame([{"measure": lab, "version 1": v1.get(k, np.nan), "version 2": summary.get(k, np.nan)} for k, lab in nums])
+    return ("## Version 1 and version 2\n\n"
+            "Version 2 changes the training and the model, not the rules: every model practises with lost telemetry "
+            "sensors and with extra cloud, rebuilt channels stay flagged as not measured, and every model receives "
+            "five image-quality numbers that the reliability gate also reads directly. Both versions are judged by the "
+            "same decision rules on the same test passes.\n\n" + md_table(t) + "\n\n" + md_table(n) + "\n")
+
+
 def reconstruction(summary: dict) -> tuple[str, bool | None]:
     r = read("m4_reconstruction_results.csv")
     if r is None:
@@ -197,6 +348,17 @@ def reconstruction(summary: dict) -> tuple[str, bool | None]:
 
 
 SYNTH_RUN = False
+
+
+def rq3_sentence(s: dict) -> str:
+    parts, worse = [], []
+    for k in (1, 2, 4):
+        z, r = s.get(f"recon_health_F1_k{k}_zero"), s.get(f"recon_health_F1_k{k}_recon")
+        parts.append(f"{z} → {r} with {k} lost"); (worse.append(k) if r is not None and z is not None and r < z else None)
+    head = "In the fused model, health F1 when lost channels are rebuilt instead of zero-filled: " + "; ".join(parts) + "."
+    if not worse:
+        return head + " Rebuilding is at least as good as zero-filling in every case."
+    return head + f" Rebuilding is worse than zero-filling with {', '.join(map(str, worse))} channel(s) lost."
 
 
 def word(v) -> str:
@@ -240,13 +402,14 @@ def main(argv=None) -> int:
              + (f" On **real** OPSSAT-AD telemetry the AR forecast-residual detector reaches F1 {s['opssat_best_F1']} (MCC {s['opssat_best_MCC']}, AUC-ROC {s['opssat_best_AUC_ROC']}) vs {s['opssat_iforest_F1']} (Isolation Forest) and {s['opssat_limit_F1']} (limits)." if "opssat_best_F1" in s else ""),
              f"\n**RQ3 — can missing telemetry channels be reconstructed so detection degrades gracefully?** {word(rq3)}. "
              f"Cross-channel reconstruction cuts the error on the six physically linked channels by {s.get('recon_mean_error_reduction_linked', float('nan')):.0%} on average versus mean-filling; attitude error and payload power cannot be reconstructed (no physical link)."
-             + (f" In the fused model, reconstructing lost channels instead of zero-filling them raises health F1 from {s.get('recon_health_F1_k1_zero')} to {s.get('recon_health_F1_k1_recon')} (1 channel lost) and from {s.get('recon_health_F1_k2_zero')} to {s.get('recon_health_F1_k2_recon')} (2 lost), but not when half the channels are lost ({s.get('recon_health_F1_k4_zero')} zero-filled vs {s.get('recon_health_F1_k4_recon')} reconstructed, 4 of 8): degradation is graceful only while most channels remain." if "recon_health_F1_k1_zero" in s else "")
+             + (" " + rq3_sentence(s) if "recon_health_F1_k1_zero" in s else "")
              + (" Image-dependent part provisional (synthetic EO)." if synthetic else ""),
              f"\n**RQ4 — do the learned trust weights shift sensibly when an input is degraded or removed?** {word(rq4)}"
              + ("" if rq4 is None else f". Mean α_opt for the flood decision: clear {s.get('alpha_opt_clear', float('nan')):.3f}, cloudy {s.get('alpha_opt_cloudy', float('nan')):.3f}, payload-fault-damaged {s.get('alpha_opt_payload_fault', float('nan')):.3f}, optical missing {s.get('alpha_opt_optical_missing', float('nan')):.3f}."),
              "\nDecision rules are stated in `evaluation/m4_final_report.py` and applied mechanically.\n",
+             versions(s),
              "## 1. Forecasting ladder (MLTS)\n", f_txt,
-             f"\nThe deep models: GRU mean skill at 5 min = {s.get('forecast_skill_h10_gru', float('nan')):.3f}, LSTM = {s.get('forecast_skill_h10_lstm', float('nan')):.3f}; best overall = `{s.get('forecast_best_model')}` ({s.get('forecast_best_skill_h10', float('nan')):.3f}).\n",
+             f"\nOn the test split at 5 min ahead: GRU skill {s.get('forecast_skill_h10_gru', float('nan')):.3f}, LSTM {s.get('forecast_skill_h10_lstm', float('nan')):.3f}; the validation choice `{s.get('forecast_best_model')}` scores {s.get('forecast_best_skill_h10', float('nan')):.3f}.\n",
              "## 2. Satellite-health anomaly detection\n", h_txt,
              "\n## 3. Earth-observation baselines (flood)\n", ("> Synthetic stand-in: pipeline check only.\n\n" if synthetic else "") + e_txt,
              "\n## 4. Fusion, missing inputs and ablations\n", ("> Synthetic EO stand-in: pipeline check only.\n\n" if synthetic else "") + fu_txt,
@@ -256,7 +419,8 @@ def main(argv=None) -> int:
              "- Telemetry–image pairing is a **simulation assumption** (virtual passes): payload faults are coupled to damaged optical patches by design.\n"
              "- Small event counts in the simulated test split (9 events): one event ≈ ±0.1 F1.\n"
              "- Patches are 128×128 (2× downsampled) with 6 optical bands for CPU training; flood = water fraction ≥ 5 %, which includes permanent water.\n"
-             "- Single generator seed; fusion results averaged over 3 training seeds.\n",
+             "- Single generator seed; fusion results averaged over 3 training seeds.\n"
+             "- The image-quality check is fitted on clean training patches and tested on SIMULATED damage (clouds, stripes, noise, saturation); real clouds in Sen1Floods11 are not labelled, so its behaviour on real clouds is not measured.\n",
              "## Future work\n",
              "- Real mission data with co-located imagery; thermal modality; on-board deployment of the lightweight gate; a second generator seed and a walk-forward evaluation.\n"]
     out = C.REPORTS / "FINAL_CONCLUSIONS.md"

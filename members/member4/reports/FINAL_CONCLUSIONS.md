@@ -247,7 +247,7 @@ _If the 95 % interval contains 0, the two models cannot be told apart on this te
 | att_err | 0.0200 | 0.0200 | 0.0219 | 0.0200 |
 | payload_P | 1.2239 | 1.2277 | 1.2849 | 1.2229 |
 
-## Limitations (state these in the paper)
+## Limitations
 
 - Telemetry is **simulated** (generator v1); real-telemetry evidence comes from OPSSAT-AD, segment-level only.
 - Telemetry–image pairing is a **simulation assumption** (virtual passes): payload faults are coupled to damaged optical patches by design.

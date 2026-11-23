@@ -1,4 +1,4 @@
-"""
+﻿"""
 m4_final_report.py - write the final conclusions FROM MEASURED RESULTS ONLY (Milestones 14-15).
 
 Reads every results/*.csv produced by the pipeline and writes
@@ -414,7 +414,7 @@ def main(argv=None) -> int:
              "\n## 3. Earth-observation baselines (flood)\n", ("> Synthetic stand-in: pipeline check only.\n\n" if synthetic else "") + e_txt,
              "\n## 4. Fusion, missing inputs and ablations\n", ("> Synthetic EO stand-in: pipeline check only.\n\n" if synthetic else "") + fu_txt,
              "\n## 5. Telemetry channel reconstruction (test, 60-min gaps, MAE)\n", rc_txt,
-             "\n## Limitations (state these in the paper)\n",
+             "\n## Limitations\n",
              "- Telemetry is **simulated** (generator v1); real-telemetry evidence comes from OPSSAT-AD, segment-level only.\n"
              "- Telemetry–image pairing is a **simulation assumption** (virtual passes): payload faults are coupled to damaged optical patches by design.\n"
              "- Small event counts in the simulated test split (9 events): one event ≈ ±0.1 F1.\n"
